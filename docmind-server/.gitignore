@@ -1,1 +1,186 @@
+# ============================================
+# DEPENDENCIES
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ============================================
+# ENVIRONMENT VARIABLES
+# ============================================
 .env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+
+# ============================================
+# UPLOADED FILES
+# ============================================
+uploads/
+uploads/*
+!uploads/.gitkeep
+temp/
+temp/*
+tmp/
+tmp/*
+
+# ============================================
+# LOGS
+# ============================================
+logs/
+logs/*
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pm2/
+.pm2.log
+.pid
+
+# ============================================
+# RUNTIME DATA
+# ============================================
+data/
+data/*
+*.pid
+*.seed
+*.pid.lock
+
+# ============================================
+# COVERAGE DIRECTORY
+# ============================================
+coverage/
+coverage/*
+.nyc_output/
+.nyc_output/*
+
+# ============================================
+# DEPENDENCY DIRECTORIES
+# ============================================
+node_modules/
+jspm_packages/
+
+# ============================================
+# BUILD OUTPUT
+# ============================================
+dist/
+dist/*
+build/
+build/*
+out/
+out/*
+
+# ============================================
+# MISC
+# ============================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.iml
+.vscode/
+.idea/
+*.log
+*.tmp
+*.temp
+
+# ============================================
+# OS GENERATED FILES
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ============================================
+# BACKUP FILES
+# ============================================
+*.bak
+*.backup
+*.old
+*.orig
+
+# ============================================
+# DATABASE FILES
+# ============================================
+*.db
+*.sqlite
+*.sqlite3
+*.mdb
+*.accdb
+
+# ============================================
+# CERTIFICATES
+# ============================================
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ============================================
+# DOCKER
+# ============================================
+docker-compose.override.yml
+.docker/
+docker/
+*.dockerignore
+
+# ============================================
+# TESTING
+# ============================================
+test-results/
+test-results/*
+test-reports/
+test-reports/*
+
+# ============================================
+# PROJECT SPECIFIC
+# ============================================
+# MongoDB Atlas local files
+mongodb/
+mongodb/*
+
+# Gemini API cache
+.gemini-cache/
+.gemini-cache/*
+
+# PDF processing temp files
+pdf-temp/
+pdf-temp/*
+
+# Uploads directory (keep structure but ignore files)
+uploads/*
+!uploads/.gitkeep
+
+# Session storage
+sessions/
+sessions/*
+
+# Redis dump
+dump.rdb
+
+# ============================================
+# PM2
+# ============================================
+.pm2/
+.pm2/*
+
+# ============================================
+# NODEMON
+# ============================================
+nodemon.json

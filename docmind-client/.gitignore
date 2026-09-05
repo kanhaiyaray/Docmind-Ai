@@ -1,26 +1,182 @@
-# Logs
-logs
+# ============================================
+# DEPENDENCIES
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ============================================
+# ENVIRONMENT VARIABLES
+# ============================================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+
+# ============================================
+# BUILD OUTPUTS
+# ============================================
+dist/
+dist/*
+dist-ssr/
+*.local
+
+# ============================================
+# VITE SPECIFIC
+# ============================================
+# Vite generates these files
+.vite/
+.vite/*
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+*.timestamp-*
+
+# ============================================
+# COVERAGE
+# ============================================
+coverage/
+coverage/*
+.nyc_output/
+.nyc_output/*
+
+# ============================================
+# LOGS
+# ============================================
+logs/
+logs/*
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# ============================================
+# OS FILES
+# ============================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ============================================
+# EDITOR FILES
+# ============================================
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-.env
+# ============================================
+# CACHE
+# ============================================
+.cache/
+.cache/*
+.parcel-cache/
+.parcel-cache/*
+.eslintcache
+*.cache
+*.tsbuildinfo
+
+# ============================================
+# ASSETS
+# ============================================
+# Uncomment if you want to keep certain files
+# !.gitkeep
+# !.keep
+
+# ============================================
+# BACKUP FILES
+# ============================================
+*.bak
+*.backup
+*.old
+*.orig
+
+# ============================================
+# TESTING
+# ============================================
+test-results/
+test-results/*
+test-reports/
+test-reports/*
+
+# ============================================
+# MISC
+# ============================================
+*.local
+*.log
+*.tmp
+*.temp
+*.pid
+*.seed
+*.pid.lock
+
+# ============================================
+# PROJECT SPECIFIC
+# ============================================
+# React build analysis
+stats.html
+stats.json
+
+# Webpack bundles
+*.bundle.js
+*.bundle.js.map
+
+# Generated CSS
+*.generated.css
+
+# Public assets (uncomment if you want to ignore)
+# public/*.png
+# public/*.jpg
+# public/*.svg
+# !public/.gitkeep
+
+# ============================================
+# STORYBOOK
+# ============================================
+storybook-static/
+storybook-static/*
+
+# ============================================
+# CYPRESS
+# ============================================
+cypress/screenshots/
+cypress/screenshots/*
+cypress/videos/
+cypress/videos/*
+
+# ============================================
+# PLAYWRIGHT
+# ============================================
+playwright-report/
+playwright-report/*
+test-results/
+test-results/*
+
+# ============================================
+# DEPLOYMENT
+# ============================================
+*.tgz
+*.tar.gz
+*.zip
