@@ -1,14 +1,34 @@
 ﻿const express = require('express');
 const router = express.Router();
+const { protect } = require('../middleware/authMiddleware');
+const {
+  sendMessage,
+  sendMultiDocumentMessage,
+  getChatHistory,
+  getConversation,
+  deleteConversation,
+  clearChatHistory,
+} = require('../controllers/chatController');
+
+// All routes are protected
+router.use(protect);
+
+// Send message (single document)
+router.post('/', sendMessage);
+
+// Send message (multiple documents)
+router.post('/multi', sendMultiDocumentMessage);
 
 // Get chat history
-router.get('/history', (req, res) => {
-  res.status(200).json({ message: 'Chat history route - To be implemented' });
-});
+router.get('/history', getChatHistory);
 
-// Send message
-router.post('/', (req, res) => {
-  res.status(200).json({ message: 'Chat message route - To be implemented' });
-});
+// Get single conversation
+router.get('/:conversationId', getConversation);
+
+// Delete conversation
+router.delete('/:conversationId', deleteConversation);
+
+// Clear chat history for a document
+router.delete('/clear/:documentId', clearChatHistory);
 
 module.exports = router;
