@@ -31,8 +31,17 @@ const chunkSchema = new mongoose.Schema(
       default: null,
     },
     metadata: {
-      type: Object,
-      default: {},
+      filename: String,
+      pageNumber: Number,
+      chunkSize: Number,
+    },
+    charCount: {
+      type: Number,
+      default: 0,
+    },
+    wordCount: {
+      type: Number,
+      default: 0,
     },
   },
   {
@@ -42,7 +51,10 @@ const chunkSchema = new mongoose.Schema(
 
 // Indexes for vector search
 chunkSchema.index({ documentId: 1, pageNumber: 1 });
-chunkSchema.index({ userId: 1 });
+chunkSchema.index({ userId: 1, documentId: 1 });
+
+// Create vector search index (to be created in MongoDB Atlas)
+// This is just a placeholder - actual index created in MongoDB Atlas UI
 
 const Chunk = mongoose.model('Chunk', chunkSchema);
 
