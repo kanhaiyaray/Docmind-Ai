@@ -1,7 +1,8 @@
 ﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
-import Navbar from './components/Navbar';
+import Sidebar from './components/Sidebar';
+import Topbar from './components/Topbar';
 
 // Pages
 import Login from './pages/Login';
@@ -12,19 +13,35 @@ import Chat from './pages/Chat';
 
 function App() {
   return (
-    <Router>
+    <Router 
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <AuthProvider>
-        <div className="min-h-screen bg-gray-50">
-          <Navbar />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-            <Route path="/documents" element={<PrivateRoute><Documents /></PrivateRoute>} />
-            <Route path="/chat/:documentId?" element={<PrivateRoute><Chat /></PrivateRoute>} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </div>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/*" element={
+            <PrivateRoute>
+              <div className="app-container">
+                <Sidebar />
+                <div className="main-content">
+                  <Topbar />
+                  <div style={{ padding: '24px 32px' }}>
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/documents" element={<Documents />} />
+                      <Route path="/chat/:documentId?" element={<Chat />} />
+                      <Route path="*" element={<Navigate to="/" />} />
+                    </Routes>
+                  </div>
+                </div>
+              </div>
+            </PrivateRoute>
+          } />
+        </Routes>
       </AuthProvider>
     </Router>
   );

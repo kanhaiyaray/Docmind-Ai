@@ -12,12 +12,16 @@ const path = require('path');
 // @access  Private
 const uploadDocument = async (req, res) => {
   try {
+    console.log('📤 Upload request received');
+    
     if (!req.file) {
       return res.status(400).json({
         success: false,
         message: 'No file uploaded',
       });
     }
+
+    console.log(`📄 File: ${req.file.originalname}, Size: ${req.file.size} bytes`);
 
     const { originalname, filename, size, path: filePath } = req.file;
 
@@ -32,10 +36,11 @@ const uploadDocument = async (req, res) => {
     });
 
     await document.save();
+    console.log(`📝 Document record created: ${document._id}`);
 
     // Process PDF asynchronously
-    processDocument(document._id, filePath).catch((error) => {
-      console.error(`Error processing document ${document._id}:`, error);
+    processDocument(document._id, filePath, req.userId).catch((error) => {
+      console.error(`❌ Error processing document ${document._id}:`, error);
     });
 
     res.status(201).json({
@@ -53,38 +58,52 @@ const uploadDocument = async (req, res) => {
 };
 
 // Process document (extract text, chunk, embed)
-const processDocument = async (documentId, filePath) => {
+const processDocument = async (documentId, filePath, userId) => {
   try {
+    console.log(`🔄 Processing document ${documentId}...`);
+    
     const document = await Document.findById(documentId);
-    if (!document) return;
+    if (!document) {
+      console.log(`❌ Document ${documentId} not found`);
+      return;
+    }
 
     // Extract text from PDF
+    console.log(`📖 Extracting text from PDF...`);
     const extraction = await pdfService.extractText(filePath);
+    console.log(`✅ Extracted ${extraction.pageCount} pages, ${extraction.totalChars} characters`);
     
-    // Update document with page count
+    // Update document with page count and metadata
     document.pageCount = extraction.pageCount;
+    if (extraction.metadata) {
+      document.metadata = extraction.metadata;
+    }
     await document.save();
 
     // Chunk the text
+    console.log(`🧩 Chunking document...`);
     const chunks = await chunkService.chunkDocument(
       documentId,
-      document.userId,
+      userId,
       extraction.pages
     );
+    console.log(`✅ Created ${chunks.length} chunks`);
 
     // Generate embeddings for chunks
+    console.log(`🧠 Generating embeddings...`);
     await embeddingService.generateAndStoreEmbeddings(chunks);
+    console.log(`✅ Embeddings generated`);
 
     // Update document status
     document.status = 'completed';
     await document.save();
+    console.log(`✅ Document ${documentId} processed successfully`);
 
-    // Clean up uploaded file (optional - keep for PDF viewer)
+    // Clean up uploaded file (optional)
     // fs.unlinkSync(filePath);
 
-    console.log(`✅ Document ${documentId} processed successfully`);
   } catch (error) {
-    console.error(`Error processing document ${documentId}:`, error);
+    console.error(`❌ Error processing document ${documentId}:`, error);
     
     // Update document status to failed
     await Document.findByIdAndUpdate(documentId, {
@@ -99,6 +118,8 @@ const processDocument = async (documentId, filePath) => {
 // @access  Private
 const getDocuments = async (req, res) => {
   try {
+    console.log(`📋 Fetching documents for user ${req.userId}`);
+    
     const { status, search, page = 1, limit = 10 } = req.query;
     
     const query = { userId: req.userId };
@@ -121,6 +142,8 @@ const getDocuments = async (req, res) => {
 
     const documents = await documentsQuery;
     const total = await Document.countDocuments(query);
+
+    console.log(`📄 Found ${documents.length} documents`);
 
     res.json({
       success: true,

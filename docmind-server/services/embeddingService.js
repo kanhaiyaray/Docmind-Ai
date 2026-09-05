@@ -6,43 +6,37 @@ const generateAndStoreEmbeddings = async (chunks) => {
   try {
     if (!chunks || chunks.length === 0) return [];
 
-    // Process embeddings in batches and save immediately to avoid memory buildup
-    const batchSize = 10;
-    let processedCount = 0;
+    // Extract content from chunks
+    const contents = chunks.map(chunk => chunk.content);
     
-    for (let i = 0; i < chunks.length; i += batchSize) {
-      const chunkBatch = chunks.slice(i, i + batchSize);
-      const contents = chunkBatch.map(chunk => chunk.content);
+    // Generate embeddings in batches to avoid rate limits
+    const batchSize = 10;
+    const embeddings = [];
+    
+    for (let i = 0; i < contents.length; i += batchSize) {
+      const batch = contents.slice(i, i + batchSize);
+      const batchEmbeddings = await generateBatchEmbeddings(batch);
+      embeddings.push(...batchEmbeddings);
       
-      // Generate embeddings for this batch
-      const batchEmbeddings = await generateBatchEmbeddings(contents);
-      
-      // Update chunks with embeddings immediately (don't accumulate in memory)
-      const updatePromises = chunkBatch.map((chunk, index) => {
-        return Chunk.findByIdAndUpdate(
-          chunk._id,
-          { embedding: batchEmbeddings[index] },
-          { new: false } // Don't return full document to save memory
-        );
-      });
-
-      await Promise.all(updatePromises);
-      processedCount += chunkBatch.length;
-      
-      console.log(`✅ Processed ${processedCount}/${chunks.length} embeddings`);
-      
-      // Small delay to avoid rate limiting and give garbage collector a chance
-      if (i + batchSize < chunks.length) {
+      // Small delay to avoid rate limiting
+      if (i + batchSize < contents.length) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-      
-      // Explicitly clear arrays to help garbage collection
-      contents.length = 0;
-      batchEmbeddings.length = 0;
     }
 
-    console.log(`✅ Generated ${processedCount} embeddings successfully`);
-    return chunks;
+    // Update chunks with embeddings
+    const updatePromises = chunks.map((chunk, index) => {
+      return Chunk.findByIdAndUpdate(
+        chunk._id,
+        { embedding: embeddings[index] },
+        { new: true }
+      );
+    });
+
+    const updatedChunks = await Promise.all(updatePromises);
+    console.log(`✅ Generated ${updatedChunks.length} embeddings`);
+
+    return updatedChunks;
   } catch (error) {
     console.error('Embedding generation error:', error);
     throw new Error(`Failed to generate embeddings: ${error.message}`);
@@ -77,48 +71,15 @@ const chunksHaveEmbeddings = async (documentId) => {
 
 // Regenerate missing embeddings
 const regenerateMissingEmbeddings = async () => {
-  try {
-    const batchSize = 50; // Process chunks in smaller batches
-    let skip = 0;
-    let totalProcessed = 0;
-    
-    while (true) {
-      // Fetch chunks without embeddings in batches
-      const chunks = await Chunk.find({ embedding: null })
-        .skip(skip)
-        .limit(batchSize)
-        .lean(); // Use lean() to get plain objects (less memory)
-
-      if (chunks.length === 0) {
-        console.log(`✅ All ${totalProcessed} missing embeddings regenerated`);
-        return;
-      }
-
-      console.log(`🔄 Regenerating embeddings for batch ${skip / batchSize + 1} (${chunks.length} chunks)`);
-      
-      // Generate embeddings for this batch
-      const contents = chunks.map(chunk => chunk.content);
-      const batchEmbeddings = await generateBatchEmbeddings(contents);
-
-      // Update chunks immediately
-      const updatePromises = chunks.map((chunk, index) => {
-        return Chunk.findByIdAndUpdate(
-          chunk._id,
-          { embedding: batchEmbeddings[index] },
-          { new: false }
-        );
-      });
-
-      await Promise.all(updatePromises);
-      totalProcessed += chunks.length;
-      skip += batchSize;
-      
-      // Give garbage collector a chance
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-  } catch (error) {
-    console.error('Regenerate embeddings error:', error);
+  const chunks = await Chunk.find({ embedding: null });
+  
+  if (chunks.length === 0) {
+    console.log('✅ All chunks have embeddings');
+    return;
   }
+
+  console.log(`🔄 Regenerating embeddings for ${chunks.length} chunks`);
+  await generateAndStoreEmbeddings(chunks);
 };
 
 module.exports = {

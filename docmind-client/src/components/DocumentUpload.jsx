@@ -1,5 +1,6 @@
 ﻿import React, { useState, useRef } from 'react';
 import { Upload, X, File, AlertCircle, CheckCircle } from 'lucide-react';
+import api from '../services/api';
 
 const DocumentUpload = ({ onUploadSuccess }) => {
   const [file, setFile] = useState(null);
@@ -36,31 +37,29 @@ const DocumentUpload = ({ onUploadSuccess }) => {
     formData.append('document', file);
 
     try {
-      const response = await fetch('/api/documents/upload', {
-        method: 'POST',
-        body: formData,
+      const response = await api.post('/documents/upload', formData, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setProgress(percentCompleted);
         },
       });
 
-      if (!response.ok) {
-        throw new Error('Upload failed');
+      if (response.data.success) {
+        setSuccess(true);
+        setProgress(100);
+        
+        setTimeout(() => {
+          setFile(null);
+          setSuccess(false);
+          setProgress(0);
+          if (onUploadSuccess) onUploadSuccess();
+        }, 2000);
       }
-
-      const data = await response.json();
-      setSuccess(true);
-      setProgress(100);
-      
-      // Reset after 2 seconds
-      setTimeout(() => {
-        setFile(null);
-        setSuccess(false);
-        setProgress(0);
-        if (onUploadSuccess) onUploadSuccess();
-      }, 2000);
     } catch (error) {
-      setError(error.message || 'Upload failed. Please try again.');
+      setError(error.response?.data?.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -78,17 +77,15 @@ const DocumentUpload = ({ onUploadSuccess }) => {
 
   return (
     <div className="w-full">
-      {/* Drop Zone */}
       <div
         className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-          file ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'
+          file ? 'border-purple-500 bg-purple-50' : 'border-gray-300 hover:border-purple-400 hover:bg-gray-50'
         }`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
           const droppedFile = e.dataTransfer.files[0];
           if (droppedFile) {
-            // Trigger file selection logic
             const event = { target: { files: [droppedFile] } };
             handleFileSelect(event);
           }
@@ -117,7 +114,7 @@ const DocumentUpload = ({ onUploadSuccess }) => {
         ) : (
           <div className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm">
             <div className="flex items-center space-x-3">
-              <File className="h-8 w-8 text-primary-600" />
+              <File className="h-8 w-8 text-purple-600" />
               <div className="text-left">
                 <p className="font-medium text-gray-900">{file.name}</p>
                 <p className="text-sm text-gray-500">
@@ -135,7 +132,6 @@ const DocumentUpload = ({ onUploadSuccess }) => {
         )}
       </div>
 
-      {/* Upload Progress */}
       {uploading && (
         <div className="mt-4">
           <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
@@ -144,14 +140,13 @@ const DocumentUpload = ({ onUploadSuccess }) => {
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
-              className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+              className="bg-purple-600 h-2 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
         </div>
       )}
 
-      {/* Success Message */}
       {success && (
         <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2 text-green-700">
           <CheckCircle className="h-5 w-5" />
@@ -159,7 +154,6 @@ const DocumentUpload = ({ onUploadSuccess }) => {
         </div>
       )}
 
-      {/* Error Message */}
       {error && (
         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2 text-red-700">
           <AlertCircle className="h-5 w-5" />
@@ -167,7 +161,6 @@ const DocumentUpload = ({ onUploadSuccess }) => {
         </div>
       )}
 
-      {/* Upload Button */}
       {file && !uploading && !success && (
         <button
           onClick={handleUpload}

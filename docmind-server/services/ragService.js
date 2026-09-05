@@ -33,6 +33,8 @@ Your response should include the answer and the page numbers where the informati
 // Process RAG query
 const processRAGQuery = async (question, documentId, userId) => {
   try {
+    console.log(`🔍 Processing RAG query for document ${documentId}`);
+    
     // Get document info
     const document = await Document.findOne({
       _id: documentId,
@@ -50,6 +52,8 @@ const processRAGQuery = async (question, documentId, userId) => {
     // Search for relevant chunks
     const relevantChunks = await searchDocument(question, documentId, 5);
     
+    console.log(`📄 Found ${relevantChunks.length} relevant chunks`);
+    
     if (relevantChunks.length === 0) {
       return {
         answer: "I couldn't find any relevant information in this document for your question. Please try asking something else or check if the document has been properly processed.",
@@ -60,16 +64,18 @@ const processRAGQuery = async (question, documentId, userId) => {
 
     // Build context from chunks
     const context = relevantChunks.map(chunk => ({
-      content: chunk.content,
-      pageNumber: chunk.pageNumber,
+      content: chunk.content || chunk.text || '',
+      pageNumber: chunk.pageNumber || 1,
       score: chunk.score || 0,
     }));
 
     // Build prompt
     const prompt = buildRAGPrompt(context, question);
+    console.log(`📝 Prompt built, sending to Gemini...`);
 
     // Get response from LLM
     const answer = await generateChatResponse(prompt);
+    console.log(`✅ Got response from Gemini`);
 
     // Extract sources
     const sources = context.map(c => ({
@@ -105,13 +111,11 @@ const processMultiDocumentRAG = async (question, documentIds, userId) => {
 
     // Get chunks from all documents
     const allChunks = [];
-    const documentMap = {};
 
     for (const doc of documents) {
-      documentMap[doc._id] = doc.title;
       const chunks = await searchDocument(question, doc._id, 3);
       allChunks.push(...chunks.map(chunk => ({
-        ...chunk.toObject ? chunk.toObject() : chunk,
+        ...chunk,
         documentTitle: doc.title,
         documentId: doc._id,
       })));
@@ -131,8 +135,8 @@ const processMultiDocumentRAG = async (question, documentIds, userId) => {
 
     // Build context
     const context = topChunks.map(chunk => ({
-      content: chunk.content,
-      pageNumber: chunk.pageNumber,
+      content: chunk.content || chunk.text || '',
+      pageNumber: chunk.pageNumber || 1,
       document: chunk.documentTitle,
       documentId: chunk.documentId,
     }));

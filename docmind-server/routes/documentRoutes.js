@@ -10,6 +10,7 @@ const {
   getDocumentFile,
   updateDocument,
 } = require('../controllers/documentController');
+const { generateSummary, suggestQuestions } = require('../controllers/extraController');
 
 // All routes are protected
 router.use(protect);
@@ -36,5 +37,11 @@ router.delete('/:id', deleteDocument);
 
 // Get document file
 router.get('/:id/file', getDocumentFile);
+
+// Generate summary
+router.post('/summary', generateSummary);
+
+// Suggest questions
+router.post('/suggest-questions', suggestQuestions);
 
 module.exports = router;

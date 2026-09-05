@@ -2,12 +2,13 @@
 const { generateEmbeddingForText } = require('./embeddingService');
 
 // MongoDB Vector Search configuration
-// Note: This assumes you've created a vector search index in MongoDB Atlas
-const VECTOR_SEARCH_INDEX = 'default'; // Name of your vector search index
+const VECTOR_SEARCH_INDEX = 'default';
 
 // Perform vector search
 const vectorSearch = async (query, documentId, limit = 5) => {
   try {
+    console.log(`🔍 Vector search: query="${query}", documentId=${documentId}`);
+    
     // Generate embedding for query
     const queryEmbedding = await generateEmbeddingForText(query);
     if (!queryEmbedding) {
@@ -15,75 +16,84 @@ const vectorSearch = async (query, documentId, limit = 5) => {
     }
 
     // Build match conditions
-    const matchConditions = { documentId };
-
-    // Perform vector search using MongoDB's $vectorSearch
-    // This works if you have a vector search index on the embedding field
-    const results = await Chunk.aggregate([
-      {
-        $vectorSearch: {
-          index: VECTOR_SEARCH_INDEX,
-          path: 'embedding',
-          queryVector: queryEmbedding,
-          numCandidates: 100,
-          limit: limit,
-          filter: matchConditions,
-        },
-      },
-      {
-        $project: {
-          content: 1,
-          pageNumber: 1,
-          documentId: 1,
-          chunkIndex: 1,
-          metadata: 1,
-          score: { $meta: 'vectorSearchScore' },
-        },
-      },
-    ]);
-
-    // If no results or vector search not configured, fallback to text search
-    if (!results || results.length === 0) {
-      console.log('Vector search returned no results, falling back to text search');
-      return await fallbackSearch(query, documentId, limit);
+    const matchConditions = {};
+    if (documentId) {
+      matchConditions.documentId = documentId;
     }
 
-    console.log(`✅ Vector search found ${results.length} results`);
-    return results;
+    console.log(`📊 Match conditions:`, matchConditions);
+
+    // Try vector search first
+    try {
+      const results = await Chunk.aggregate([
+        {
+          $vectorSearch: {
+            index: VECTOR_SEARCH_INDEX,
+            path: 'embedding',
+            queryVector: queryEmbedding,
+            numCandidates: 100,
+            limit: limit,
+            filter: matchConditions,
+          },
+        },
+        {
+          $project: {
+            content: 1,
+            pageNumber: 1,
+            documentId: 1,
+            chunkIndex: 1,
+            metadata: 1,
+            score: { $meta: 'vectorSearchScore' },
+          },
+        },
+      ]);
+
+      console.log(`✅ Vector search found ${results.length} results`);
+      if (results && results.length > 0) {
+        return results;
+      }
+    } catch (vectorError) {
+      console.log('⚠️ Vector search failed, falling back to text search:', vectorError.message);
+    }
+
+    // Fallback to text search
+    return await fallbackSearch(query, documentId, limit);
   } catch (error) {
     console.error('Vector search error:', error);
-    // Fallback to text search
     return await fallbackSearch(query, documentId, limit);
   }
 };
 
-// Fallback text search (when vector search fails or returns no results)
+// Fallback text search
 const fallbackSearch = async (query, documentId, limit = 5) => {
   try {
-    // Split query into keywords
+    console.log(`📝 Fallback text search: query="${query}"`);
+    
     const keywords = query.split(/\s+/).filter(word => word.length > 2);
     
-    // Build search conditions
     const searchConditions = [];
     for (const keyword of keywords) {
       searchConditions.push({ content: { $regex: keyword, $options: 'i' } });
     }
 
-    const matchConditions = { documentId };
-
-    // Search using regex
-    const results = await Chunk.find({
-      ...matchConditions,
-      $or: searchConditions,
-    })
-      .limit(limit)
-      .sort({ content: 1 });
-
-    // If no results, return some chunks from the document
-    if (results.length === 0 && documentId) {
-      return await Chunk.find(matchConditions).limit(limit);
+    const matchConditions = {};
+    if (documentId) {
+      matchConditions.documentId = documentId;
     }
 
+    let results = [];
+    if (searchConditions.length > 0) {
+      results = await Chunk.find({
+        ...matchConditions,
+        $or: searchConditions,
+      })
+        .limit(limit)
+        .sort({ content: 1 });
+    } else {
+      results = await Chunk.find(matchConditions).limit(limit);
+    }
+
+    console.log(`📄 Text search found ${results.length} results`);
     return results;
   } catch (error) {
     console.error('Fallback search error:', error);
@@ -98,10 +108,10 @@ const searchDocument = async (query, documentId, limit = 5) => {
 
 // Search across all user documents
 const searchAllDocuments = async (query, userId, limit = 5) => {
-  return await vectorSearch(query, { userId }, limit);
+  return await vectorSearch(query, null, limit);
 };
 
-// Get similar chunks to a given chunk
+// Get similar chunks
 const getSimilarChunks = async (chunkId, limit = 5) => {
   try {
     const chunk = await Chunk.findById(chunkId);

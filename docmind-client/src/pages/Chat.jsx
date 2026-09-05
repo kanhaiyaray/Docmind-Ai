@@ -1,12 +1,8 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { FileText, Send, Sparkles, Upload, Plus } from 'lucide-react';
 import Loading from '../components/Loading';
-import SourceCitation from '../components/SourceCitation';
-import DocumentSummary from '../components/DocumentSummary';
-import SuggestedQuestions from '../components/SuggestedQuestions';
-import ReactMarkdown from 'react-markdown';
-import { Send, FileText, Menu, X, Plus, ChevronLeft } from 'lucide-react';
 
 const Chat = () => {
   const { documentId } = useParams();
@@ -17,9 +13,8 @@ const Chat = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
 
   useEffect(() => {
     fetchDocuments();
@@ -29,22 +24,45 @@ const Chat = () => {
     if (documentId) {
       const doc = documents.find(d => d._id === documentId);
       setSelectedDoc(doc);
-      if (doc) fetchChatHistory(doc._id);
+      if (doc) {
+        fetchConversationHistory(doc._id);
+      }
     }
   }, [documentId, documents]);
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const fetchDocuments = async () => {
     try {
+      setLoading(true);
       const response = await api.get('/documents');
-      const completedDocs = response.data.filter(doc => doc.status === 'completed');
-      setDocuments(completedDocs);
+      let docs = [];
+      if (Array.isArray(response.data)) docs = response.data;
+      else if (response.data.documents) docs = response.data.documents;
       
-      if (!documentId && completedDocs.length > 0) {
-        navigate(`/chat/${completedDocs[0]._id}`);
+      console.log('📄 Documents fetched:', docs.length);
+      
+      // Show all documents, not just completed ones
+      setDocuments(docs);
+      
+      // Check if any document is processing
+      const processing = docs.filter(d => d.status === 'processing');
+      if (processing.length > 0) {
+        setIsProcessing(true);
+        // Poll for completion
+        checkProcessingStatus(processing.map(d => d._id));
+      } else {
+        setIsProcessing(false);
+      }
+      
+      if (!documentId && docs.length > 0) {
+        // Select first completed document, or any document
+        const firstDoc = docs.find(d => d.status === 'completed') || docs[0];
+        if (firstDoc) {
+          navigate(`/chat/${firstDoc._id}`);
+        }
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -53,12 +71,42 @@ const Chat = () => {
     }
   };
 
-  const fetchChatHistory = async (docId) => {
+  const checkProcessingStatus = async (docIds) => {
+    // Poll every 3 seconds to check if documents are processed
+    const interval = setInterval(async () => {
+      try {
+        const response = await api.get('/documents');
+        let docs = [];
+        if (Array.isArray(response.data)) docs = response.data;
+        else if (response.data.documents) docs = response.data.documents;
+        
+        const stillProcessing = docs.filter(d => 
+          docIds.includes(d._id) && d.status === 'processing'
+        );
+        
+        if (stillProcessing.length === 0) {
+          clearInterval(interval);
+          setIsProcessing(false);
+          // Refresh documents
+          fetchDocuments();
+        }
+      } catch (error) {
+        console.error('Error checking status:', error);
+      }
+    }, 3000);
+  };
+
+  const fetchConversationHistory = async (docId) => {
     try {
-      const response = await api.get(`/chat/history?documentId=${docId}`);
-      setMessages(response.data.messages || []);
+      const response = await api.get(`/chat/history?documentId=${docId}&limit=50`);
+      if (response.data.conversations && response.data.conversations.length > 0) {
+        const latest = response.data.conversations[0];
+        setMessages(latest.messages || []);
+      } else {
+        setMessages([]);
+      }
     } catch (error) {
-      console.error('Error fetching chat history:', error);
+      console.error('Error fetching history:', error);
       setMessages([]);
     }
   };
@@ -77,35 +125,21 @@ const Chat = () => {
         documentId: selectedDoc._id,
       });
 
-      const assistantMessage = {
+      setMessages(prev => [...prev, {
         role: 'assistant',
-        content: response.data.answer,
+        content: response.data.answer || 'No response received.',
         sources: response.data.sources || [],
-      };
-      setMessages(prev => [...prev, assistantMessage]);
+      }]);
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: error.response?.data?.message || 'Sorry, I encountered an error. Please try again.',
         error: true,
       }]);
     } finally {
       setSending(false);
     }
-  };
-
-  const handlePageClick = (page) => {
-    console.log(`Navigate to page ${page}`);
-  };
-
-  const handleSuggestedQuestion = (question) => {
-    setInput(question);
-    inputRef.current?.focus();
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleKeyPress = (e) => {
@@ -115,198 +149,214 @@ const Chat = () => {
     }
   };
 
+  const handleSuggestedQuestion = (question) => {
+    setInput(question);
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'completed': return '✅ Ready';
+      case 'processing': return '⏳ Processing...';
+      case 'failed': return '❌ Failed';
+      default: return '⏳ Pending';
+    }
+  };
+
   if (loading) return <Loading fullPage />;
 
-  return (
-    <div className="h-[calc(100vh-64px)] flex bg-gray-50">
-      {/* Sidebar - Document List */}
-      <div className={`${sidebarOpen ? 'w-80' : 'w-0'} transition-all duration-300 overflow-hidden border-r border-gray-200 bg-white flex-shrink-0`}>
-        <div className="h-full flex flex-col">
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Documents</h2>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors lg:hidden"
+  // No documents available - show upload prompt
+  if (documents.length === 0) {
+    return (
+      <div className="chat-container">
+        <div className="chat-main" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          background: '#f8f9fc'
+        }}>
+          <div style={{ 
+            textAlign: 'center', 
+            maxWidth: '400px',
+            padding: '40px'
+          }}>
+            <div style={{ fontSize: '64px', marginBottom: '20px' }}>📄</div>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#1a1a2e', marginBottom: '8px' }}>
+              No Documents Available
+            </h2>
+            <p style={{ color: '#a0a7b5', marginBottom: '24px' }}>
+              Upload a PDF document to start chatting with it.
+            </p>
+            <button 
+              onClick={() => navigate('/documents')}
+              className="btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
             >
-              <X className="h-5 w-5" />
+              <Upload className="h-4 w-4" />
+              Upload Document
             </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-2">
-            {documents.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <FileText className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                <p>No documents available</p>
-                <button
-                  onClick={() => navigate('/documents')}
-                  className="text-primary-600 text-sm mt-2 hover:underline"
-                >
-                  Upload a document
-                </button>
-              </div>
-            ) : (
-              documents.map((doc) => (
-                <button
-                  key={doc._id}
-                  onClick={() => {
-                    setSelectedDoc(doc);
-                    navigate(`/chat/${doc._id}`);
-                    setMessages([]);
-                    fetchChatHistory(doc._id);
-                    if (window.innerWidth < 1024) setSidebarOpen(false);
-                  }}
-                  className={`w-full text-left p-3 rounded-lg transition-colors ${
-                    selectedDoc?._id === doc._id
-                      ? 'bg-primary-100 text-primary-700 border border-primary-200'
-                      : 'hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <FileText className="h-5 w-5 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{doc.title}</p>
-                      <p className="text-xs text-gray-500">
-                        {doc.pageCount || 0} pages
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              ))
-            )}
           </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Chat Header */}
-        <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors lg:hidden"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            {selectedDoc ? (
-              <div className="flex items-center space-x-3">
-                <FileText className="h-5 w-5 text-primary-600" />
-                <div>
-                  <h3 className="font-medium text-gray-900">{selectedDoc.title}</h3>
-                  <p className="text-xs text-gray-500">
-                    {selectedDoc.pageCount || 0} pages
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="text-gray-500">
-                {documents.length > 0 ? 'Select a document' : 'No documents available'}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center space-x-2">
-            {selectedDoc && <DocumentSummary documentId={selectedDoc._id} />}
-            <button
-              onClick={() => navigate('/documents')}
-              className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
-            >
-              <Plus className="h-4 w-4 inline mr-1" />
-              New
-            </button>
-          </div>
-        </div>
+  // Only show documents that are completed or processing
+  const availableDocs = documents;
+  const completedDocs = availableDocs.filter(d => d.status === 'completed');
+  const processingDocs = availableDocs.filter(d => d.status === 'processing');
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+  return (
+    <div className="chat-container">
+      {/* Chat Sidebar */}
+      <div className="chat-sidebar">
+        <div className="chat-sidebar-title">Your Documents</div>
+        
+        {isProcessing && (
+          <div style={{ 
+            padding: '10px 12px', 
+            background: '#fff8e8', 
+            borderRadius: '8px', 
+            marginBottom: '12px',
+            fontSize: '12px',
+            color: '#fdcb6e'
+          }}>
+            ⏳ Processing documents...
+          </div>
+        )}
+        
+        {availableDocs.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: '#a0a7b5', fontSize: '13px' }}>
+            <FileText className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+            No documents available
+          </div>
+        ) : (
+          availableDocs.map((doc) => (
+            <div
+              key={doc._id}
+              className={`chat-doc-item ${selectedDoc?._id === doc._id ? 'active' : ''}`}
+              onClick={() => {
+                if (doc.status === 'completed') {
+                  setSelectedDoc(doc);
+                  navigate(`/chat/${doc._id}`);
+                  setMessages([]);
+                  fetchConversationHistory(doc._id);
+                }
+              }}
+              style={{
+                opacity: doc.status === 'completed' ? 1 : 0.5,
+                cursor: doc.status === 'completed' ? 'pointer' : 'not-allowed'
+              }}
+            >
+              <FileText className="h-4 w-4" />
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {doc.title || 'Untitled'}
+              </span>
+              <span style={{ fontSize: '10px', color: '#a0a7b5' }}>
+                {getStatusText(doc.status)}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Chat Main */}
+      <div className="chat-main">
+        <div className="chat-messages">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400">
-              <FileText className="h-16 w-16 mb-4 text-gray-300" />
-              <p className="text-lg font-medium text-gray-600">Start a conversation</p>
-              <p className="text-sm">
-                Ask questions about your document
-              </p>
+            <div className="chat-welcome">
+              <div className="chat-welcome-icon">✨</div>
+              <div className="chat-welcome-title">
+                {selectedDoc ? `Ask about "${selectedDoc.title}"` : 'Select a document to start'}
+              </div>
+              <div className="chat-welcome-sub">
+                {selectedDoc 
+                  ? 'Ask anything about your PDF' 
+                  : completedDocs.length > 0 
+                    ? 'Choose a document from the sidebar' 
+                    : 'Upload a document to get started'}
+              </div>
               {selectedDoc && (
-                <div className="mt-4 w-full max-w-md">
-                  <SuggestedQuestions 
-                    documentId={selectedDoc._id} 
-                    onSelect={handleSuggestedQuestion}
-                  />
+                <div className="chat-suggestions">
+                  <button className="chat-suggestion" onClick={() => handleSuggestedQuestion('Summarize this document')}>
+                    📝 Summarize
+                  </button>
+                  <button className="chat-suggestion" onClick={() => handleSuggestedQuestion('What are the key concepts?')}>
+                    🔑 Key concepts
+                  </button>
+                  <button className="chat-suggestion" onClick={() => handleSuggestedQuestion('What are the main findings?')}>
+                    📊 Main findings
+                  </button>
                 </div>
+              )}
+              {!selectedDoc && completedDocs.length === 0 && (
+                <button 
+                  onClick={() => navigate('/documents')}
+                  className="btn-primary"
+                  style={{ marginTop: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload a Document
+                </button>
               )}
             </div>
           ) : (
-            <>
-              {selectedDoc && messages.length > 0 && (
-                <div className="mb-4">
-                  <SuggestedQuestions 
-                    documentId={selectedDoc._id} 
-                    onSelect={handleSuggestedQuestion}
-                  />
-                </div>
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {messages.map((msg, idx) => (
                 <div
                   key={idx}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  style={{
+                    alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                    maxWidth: '75%',
+                    padding: '12px 18px',
+                    borderRadius: '16px',
+                    background: msg.role === 'user' 
+                      ? 'linear-gradient(135deg, #6c5ce7, #a29bfe)' 
+                      : 'white',
+                    color: msg.role === 'user' ? 'white' : '#1a1a2e',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    border: msg.role === 'assistant' ? '1px solid #eef0f3' : 'none',
+                  }}
                 >
-                  <div
-                    className={`max-w-3xl rounded-lg p-4 ${
-                      msg.role === 'user'
-                        ? 'bg-primary-600 text-white'
-                        : msg.error
-                        ? 'bg-red-50 border border-red-200 text-red-700'
-                        : 'bg-white border border-gray-200'
-                    }`}
-                  >
-                    <ReactMarkdown className="prose prose-sm max-w-none">
-                      {msg.content}
-                    </ReactMarkdown>
-                    
-                    {msg.sources && msg.sources.length > 0 && (
-                      <SourceCitation 
-                        sources={msg.sources} 
-                        onPageClick={handlePageClick}
-                      />
-                    )}
-                  </div>
+                  <div style={{ fontSize: '14px', whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                  {msg.sources && msg.sources.length > 0 && (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#a0a7b5' }}>
+                      📄 Sources: {msg.sources.map(s => `Page ${s.page}`).join(', ')}
+                    </div>
+                  )}
                 </div>
               ))}
-            </>
-          )}
-          {sending && (
-            <div className="flex justify-start">
-              <div className="bg-white border border-gray-200 rounded-lg p-4">
-                <div className="flex space-x-2">
-                  <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce" />
-                  <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce delay-100" />
-                  <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce delay-200" />
+              {sending && (
+                <div style={{ alignSelf: 'flex-start', padding: '12px 18px', background: 'white', borderRadius: '16px', border: '1px solid #eef0f3' }}>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <span style={{ animation: 'pulse 1.4s infinite', display: 'inline-block' }}>●</span>
+                    <span style={{ animation: 'pulse 1.4s infinite 0.2s', display: 'inline-block' }}>●</span>
+                    <span style={{ animation: 'pulse 1.4s infinite 0.4s', display: 'inline-block' }}>●</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <div className="bg-white border-t border-gray-200 p-4">
-          <div className="flex space-x-3">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={selectedDoc ? "Ask a question about this document..." : "Select a document to start..."}
-              disabled={!selectedDoc || sending}
-              className="flex-1 input-field"
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!selectedDoc || !input.trim() || sending}
-              className="btn-primary px-6 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Send className="h-5 w-5" />
-            </button>
-          </div>
+        {/* Input Area */}
+        <div className="chat-input-area">
+          <input
+            type="text"
+            className="chat-input"
+            placeholder={selectedDoc ? "Ask a question about this document..." : "Select a document first..."}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            disabled={!selectedDoc || sending || selectedDoc?.status !== 'completed'}
+          />
+          <button 
+            className="chat-send-btn"
+            onClick={sendMessage}
+            disabled={!selectedDoc || !input.trim() || sending || selectedDoc?.status !== 'completed'}
+          >
+            <Send className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>

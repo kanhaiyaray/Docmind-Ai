@@ -16,6 +16,8 @@ const sendMessage = async (req, res) => {
       });
     }
 
+    console.log(`📝 Chat request: question="${question}" documentId="${documentId}"`);
+
     // Check if document exists and belongs to user
     const document = await Document.findOne({
       _id: documentId,
@@ -66,7 +68,7 @@ const sendMessage = async (req, res) => {
     conversation.messages.push({
       role: 'assistant',
       content: result.answer,
-      sources: result.sources,
+      sources: result.sources || [],
     });
 
     // Update metadata
@@ -79,7 +81,7 @@ const sendMessage = async (req, res) => {
     res.json({
       success: true,
       answer: result.answer,
-      sources: result.sources,
+      sources: result.sources || [],
       conversationId: conversation._id,
       processingTime,
     });
@@ -136,7 +138,7 @@ const sendMultiDocumentMessage = async (req, res) => {
     conversation.messages.push({
       role: 'assistant',
       content: result.answer,
-      sources: result.sources,
+      sources: result.sources || [],
     });
 
     conversation.metadata = { processingTime };
@@ -145,7 +147,7 @@ const sendMultiDocumentMessage = async (req, res) => {
     res.json({
       success: true,
       answer: result.answer,
-      sources: result.sources,
+      sources: result.sources || [],
       conversationId: conversation._id,
       processingTime,
     });

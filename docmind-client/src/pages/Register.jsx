@@ -1,7 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, User, Mail, Lock } from 'lucide-react';
+import { UserPlus, User, Mail, Lock, Sparkles } from 'lucide-react';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -35,7 +35,6 @@ const Register = () => {
     setLoading(false);
     
     if (result.success) {
-      alert('✅ Account created successfully! Redirecting to dashboard...');
       navigate('/');
     }
   };
@@ -45,23 +44,25 @@ const Register = () => {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center">
-            <div className="bg-primary-100 rounded-full p-4">
-              <UserPlus className="h-12 w-12 text-primary-600" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur-2xl opacity-20"></div>
+              <div className="relative bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl p-4">
+                <UserPlus className="h-12 w-12 text-white" />
+              </div>
             </div>
           </div>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            Create your account
+          <h2 className="mt-6 text-3xl font-bold text-gray-900">
+            Create your <span className="gradient-text">Account</span>
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-gray-500 text-sm">
             Start using DocMind AI document assistant
           </p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {(error || passwordError) && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              <div className="font-medium">⚠️ Registration Error:</div>
-              <div className="text-sm mt-1">{passwordError || error}</div>
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
+              {passwordError || error}
             </div>
           )}
 
@@ -81,7 +82,7 @@ const Register = () => {
                   required
                   value={formData.name}
                   onChange={handleChange}
-                  className="input-field pl-10"
+                  className="input-custom pl-10"
                   placeholder="John Doe"
                 />
               </div>
@@ -102,7 +103,7 @@ const Register = () => {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="input-field pl-10"
+                  className="input-custom pl-10"
                   placeholder="you@example.com"
                 />
               </div>
@@ -123,7 +124,7 @@ const Register = () => {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="input-field pl-10"
+                  className="input-custom pl-10"
                   placeholder="••••••••"
                 />
               </div>
@@ -144,7 +145,7 @@ const Register = () => {
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="input-field pl-10"
+                  className="input-custom pl-10"
                   placeholder="••••••••"
                 />
               </div>
@@ -154,14 +155,24 @@ const Register = () => {
           <button
             type="submit"
             disabled={loading}
-            className="btn-primary w-full py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary w-full py-3 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
           >
-            {loading ? 'Creating account...' : 'Create Account'}
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                <span>Creating account...</span>
+              </>
+            ) : (
+              <>
+                <span>Create Account</span>
+                <Sparkles className="h-5 w-5" />
+              </>
+            )}
           </button>
 
-          <p className="text-center text-sm text-gray-600">
+          <p className="text-center text-sm text-gray-500">
             Already have an account?{' '}
-            <Link to="/login" className="text-primary-600 hover:text-primary-500 font-medium">
+            <Link to="/login" className="text-purple-600 hover:text-purple-700 font-medium transition-colors">
               Sign in
             </Link>
           </p>
