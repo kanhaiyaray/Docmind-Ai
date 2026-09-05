@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import Loading from '../components/Loading';
 import SourceCitation from '../components/SourceCitation';
+import DocumentSummary from '../components/DocumentSummary';
+import SuggestedQuestions from '../components/SuggestedQuestions';
 import ReactMarkdown from 'react-markdown';
 import { Send, FileText, Menu, X, Plus, ChevronLeft } from 'lucide-react';
 
@@ -41,7 +43,6 @@ const Chat = () => {
       const completedDocs = response.data.filter(doc => doc.status === 'completed');
       setDocuments(completedDocs);
       
-      // If no document selected and we have documents, select first one
       if (!documentId && completedDocs.length > 0) {
         navigate(`/chat/${completedDocs[0]._id}`);
       }
@@ -95,9 +96,12 @@ const Chat = () => {
   };
 
   const handlePageClick = (page) => {
-    // Handle page navigation - can be extended to scroll to page or highlight
     console.log(`Navigate to page ${page}`);
-    // You could add functionality to scroll to specific page in document viewer
+  };
+
+  const handleSuggestedQuestion = (question) => {
+    setInput(question);
+    inputRef.current?.focus();
   };
 
   const scrollToBottom = () => {
@@ -199,13 +203,16 @@ const Chat = () => {
               </div>
             )}
           </div>
-          <button
-            onClick={() => navigate('/documents')}
-            className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
-          >
-            <Plus className="h-4 w-4 inline mr-1" />
-            New
-          </button>
+          <div className="flex items-center space-x-2">
+            {selectedDoc && <DocumentSummary documentId={selectedDoc._id} />}
+            <button
+              onClick={() => navigate('/documents')}
+              className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
+            >
+              <Plus className="h-4 w-4 inline mr-1" />
+              New
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -217,35 +224,53 @@ const Chat = () => {
               <p className="text-sm">
                 Ask questions about your document
               </p>
+              {selectedDoc && (
+                <div className="mt-4 w-full max-w-md">
+                  <SuggestedQuestions 
+                    documentId={selectedDoc._id} 
+                    onSelect={handleSuggestedQuestion}
+                  />
+                </div>
+              )}
             </div>
           ) : (
-            messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-3xl rounded-lg p-4 ${
-                    msg.role === 'user'
-                      ? 'bg-primary-600 text-white'
-                      : msg.error
-                      ? 'bg-red-50 border border-red-200 text-red-700'
-                      : 'bg-white border border-gray-200'
-                  }`}
-                >
-                  <ReactMarkdown className="prose prose-sm max-w-none">
-                    {msg.content}
-                  </ReactMarkdown>
-                  
-                  {msg.sources && msg.sources.length > 0 && (
-                    <SourceCitation 
-                      sources={msg.sources} 
-                      onPageClick={handlePageClick}
-                    />
-                  )}
+            <>
+              {selectedDoc && messages.length > 0 && (
+                <div className="mb-4">
+                  <SuggestedQuestions 
+                    documentId={selectedDoc._id} 
+                    onSelect={handleSuggestedQuestion}
+                  />
                 </div>
-              </div>
-            ))
+              )}
+              {messages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-3xl rounded-lg p-4 ${
+                      msg.role === 'user'
+                        ? 'bg-primary-600 text-white'
+                        : msg.error
+                        ? 'bg-red-50 border border-red-200 text-red-700'
+                        : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    <ReactMarkdown className="prose prose-sm max-w-none">
+                      {msg.content}
+                    </ReactMarkdown>
+                    
+                    {msg.sources && msg.sources.length > 0 && (
+                      <SourceCitation 
+                        sources={msg.sources} 
+                        onPageClick={handlePageClick}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </>
           )}
           {sending && (
             <div className="flex justify-start">
