@@ -2,6 +2,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import Loading from '../components/Loading';
+import SourceCitation from '../components/SourceCitation';
 import ReactMarkdown from 'react-markdown';
 import { Send, FileText, Menu, X, Plus, ChevronLeft } from 'lucide-react';
 
@@ -91,6 +92,12 @@ const Chat = () => {
     } finally {
       setSending(false);
     }
+  };
+
+  const handlePageClick = (page) => {
+    // Handle page navigation - can be extended to scroll to page or highlight
+    console.log(`Navigate to page ${page}`);
+    // You could add functionality to scroll to specific page in document viewer
   };
 
   const scrollToBottom = () => {
@@ -231,16 +238,10 @@ const Chat = () => {
                   </ReactMarkdown>
                   
                   {msg.sources && msg.sources.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <p className="text-xs font-medium text-gray-500 mb-2">Sources:</p>
-                      <div className="space-y-1">
-                        {msg.sources.map((source, i) => (
-                          <div key={i} className="text-xs text-primary-600">
-                            📄 {source.document || 'Document'} — Page {source.page}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <SourceCitation 
+                      sources={msg.sources} 
+                      onPageClick={handlePageClick}
+                    />
                   )}
                 </div>
               </div>
