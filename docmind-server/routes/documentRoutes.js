@@ -1,34 +1,40 @@
 ﻿const express = require('express');
 const router = express.Router();
+const { protect } = require('../middleware/authMiddleware');
+const { upload, handleUploadError } = require('../middleware/uploadMiddleware');
+const {
+  uploadDocument,
+  getDocuments,
+  getDocument,
+  deleteDocument,
+  getDocumentFile,
+  updateDocument,
+} = require('../controllers/documentController');
+
+// All routes are protected
+router.use(protect);
 
 // Upload document
-router.post('/upload', (req, res) => {
-  res.status(200).json({ message: 'Upload route - To be implemented' });
-});
+router.post(
+  '/upload',
+  upload.single('document'),
+  handleUploadError,
+  uploadDocument
+);
 
 // Get all documents
-router.get('/', (req, res) => {
-  res.status(200).json({ message: 'Get documents route - To be implemented' });
-});
+router.get('/', getDocuments);
 
 // Get single document
-router.get('/:id', (req, res) => {
-  res.status(200).json({ message: 'Get document route - To be implemented' });
-});
+router.get('/:id', getDocument);
+
+// Update document
+router.put('/:id', updateDocument);
 
 // Delete document
-router.delete('/:id', (req, res) => {
-  res.status(200).json({ message: 'Delete document route - To be implemented' });
-});
+router.delete('/:id', deleteDocument);
 
-// Generate summary
-router.post('/summary', (req, res) => {
-  res.status(200).json({ message: 'Summary route - To be implemented' });
-});
-
-// Suggest questions
-router.post('/suggest-questions', (req, res) => {
-  res.status(200).json({ message: 'Suggest questions route - To be implemented' });
-});
+// Get document file
+router.get('/:id/file', getDocumentFile);
 
 module.exports = router;
