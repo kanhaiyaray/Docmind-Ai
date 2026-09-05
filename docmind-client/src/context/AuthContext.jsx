@@ -1,37 +1,100 @@
-﻿import React, { createContext, useState, useContext } from 'react';
+﻿import React, { createContext, useState, useContext, useEffect } from 'react';
+import api from '../services/api';
 
 const AuthContext = createContext();
 
-export function AuthProvider({ children }) {
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
+};
+
+export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    
+    if (token && savedUser) {
+      setUser(JSON.parse(savedUser));
+      verifyToken();
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  const verifyToken = async () => {
+    try {
+      const response = await api.get('/auth/me');
+      setUser(response.data.user);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+    } catch (error) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const login = async (email, password) => {
-    // TODO: Implement login
-    console.log('Login called');
+    try {
+      setError(null);
+      const response = await api.post('/auth/login', { email, password });
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
+      
+      return { success: true };
+    } catch (error) {
+      setError(error.response?.data?.message || 'Login failed');
+      return { success: false, error: error.response?.data?.message };
+    }
   };
 
   const register = async (name, email, password) => {
-    // TODO: Implement register
-    console.log('Register called');
+    try {
+      setError(null);
+      const response = await api.post('/auth/register', { name, email, password });
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
+      
+      return { success: true };
+    } catch (error) {
+      setError(error.response?.data?.message || 'Registration failed');
+      return { success: false, error: error.response?.data?.message };
+    }
   };
 
   const logout = () => {
-    setUser(null);
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
   };
 
   const value = {
     user,
     loading,
+    error,
     login,
     register,
     logout,
+    isAuthenticated: !!user,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
