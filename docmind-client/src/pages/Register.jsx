@@ -35,6 +35,7 @@ const Register = () => {
     setLoading(false);
     
     if (result.success) {
+      alert('✅ Account created successfully! Redirecting to dashboard...');
       navigate('/');
     }
   };
@@ -59,7 +60,8 @@ const Register = () => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {(error || passwordError) && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              {passwordError || error}
+              <div className="font-medium">⚠️ Registration Error:</div>
+              <div className="text-sm mt-1">{passwordError || error}</div>
             </div>
           )}
 

@@ -19,8 +19,10 @@ const register = async (req, res) => {
     // Check validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      const errorMessages = errors.array().map(e => e.msg).join(', ');
       return res.status(400).json({
         success: false,
+        message: errorMessages,
         errors: errors.array(),
       });
     }
@@ -71,8 +73,10 @@ const login = async (req, res) => {
     // Check validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      const errorMessages = errors.array().map(e => e.msg).join(', ');
       return res.status(400).json({
         success: false,
+        message: errorMessages,
         errors: errors.array(),
       });
     }

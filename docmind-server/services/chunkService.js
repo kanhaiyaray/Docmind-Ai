@@ -8,7 +8,9 @@ const OVERLAP = parseInt(process.env.OVERLAP) || 150;
 const chunkDocument = async (documentId, userId, pages) => {
   try {
     const chunks = [];
+    const insertBatchSize = 100; // Insert chunks in batches
     let chunkIndex = 0;
+    let totalChunks = 0;
 
     for (const page of pages) {
       const pageText = page.text;
@@ -34,15 +36,24 @@ const chunkDocument = async (documentId, userId, pages) => {
           charCount: chunkText.length,
           wordCount: chunkText.split(/\s+/).length,
         });
+
+        // Batch insert to avoid memory buildup
+        if (chunks.length >= insertBatchSize) {
+          await Chunk.insertMany(chunks);
+          totalChunks += chunks.length;
+          console.log(`✅ Inserted ${totalChunks} chunks so far...`);
+          chunks.length = 0; // Clear array
+        }
       }
     }
 
-    // Bulk insert chunks
+    // Insert remaining chunks
     if (chunks.length > 0) {
       await Chunk.insertMany(chunks);
+      totalChunks += chunks.length;
     }
 
-    console.log(`✅ Created ${chunks.length} chunks for document ${documentId}`);
+    console.log(`✅ Created ${totalChunks} total chunks for document ${documentId}`);
     return chunks;
   } catch (error) {
     console.error('Chunking error:', error);

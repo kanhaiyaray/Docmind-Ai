@@ -23,16 +23,32 @@ const Dashboard = () => {
   const fetchDocuments = async () => {
     try {
       const response = await api.get('/documents');
-      setDocuments(response.data);
+      console.log('API Response:', response.data);
       
-      const processed = response.data.filter(doc => doc.status === 'completed').length;
+      // Check if response.data has documents property (array) or is directly an array
+      let docs = [];
+      if (Array.isArray(response.data)) {
+        docs = response.data;
+      } else if (response.data.documents && Array.isArray(response.data.documents)) {
+        docs = response.data.documents;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        docs = response.data.data;
+      } else {
+        // If it's a single object, wrap in array
+        docs = [response.data].filter(Boolean);
+      }
+      
+      setDocuments(docs);
+      
+      const processed = docs.filter(doc => doc.status === 'completed').length;
       setStats({
-        total: response.data.length,
+        total: docs.length,
         processed: processed,
-        chats: 0, // Will be updated with chat history
+        chats: 0,
       });
     } catch (error) {
       console.error('Error fetching documents:', error);
+      setDocuments([]);
     } finally {
       setLoading(false);
     }
@@ -58,12 +74,15 @@ const Dashboard = () => {
 
   if (loading) return <Loading fullPage />;
 
+  // Ensure documents is always an array
+  const docs = Array.isArray(documents) ? documents : [];
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Welcome Section */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">
-          Welcome back, {user?.name}! 👋
+          Welcome back, {user?.name || 'User'}! 👋
         </h1>
         <p className="text-gray-600 mt-1">
           Upload documents and start chatting with your AI assistant
@@ -133,7 +152,7 @@ const Dashboard = () => {
           </button>
         </div>
 
-        {documents.length === 0 ? (
+        {docs.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-600">No documents uploaded yet</p>
@@ -147,18 +166,18 @@ const Dashboard = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {documents.slice(0, 5).map((doc) => (
+            {docs.slice(0, 5).map((doc) => (
               <div
-                key={doc._id}
+                key={doc._id || doc.id || Math.random().toString()}
                 className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => navigate(`/chat/${doc._id}`)}
+                onClick={() => navigate(`/chat/${doc._id || doc.id}`)}
               >
                 <div className="flex items-center space-x-3">
                   <FileText className="h-5 w-5 text-primary-600" />
                   <div>
-                    <p className="font-medium text-gray-900">{doc.title}</p>
+                    <p className="font-medium text-gray-900">{doc.title || 'Untitled'}</p>
                     <p className="text-sm text-gray-500">
-                      {doc.pageCount || 0} pages • {Math.round(doc.fileSize / 1024)} KB
+                      {doc.pageCount || 0} pages • {Math.round((doc.fileSize || 0) / 1024)} KB
                     </p>
                   </div>
                 </div>

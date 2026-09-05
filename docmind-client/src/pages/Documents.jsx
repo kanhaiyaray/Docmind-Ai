@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import DocumentUpload from '../components/DocumentUpload';
 import Loading from '../components/Loading';
-import { FileText, Trash2, MessageSquare, Search, X } from 'lucide-react';
+import { FileText, Trash2, MessageSquare, Search, X, Plus } from 'lucide-react';
 
 const Documents = () => {
   const [documents, setDocuments] = useState([]);
@@ -19,9 +19,25 @@ const Documents = () => {
   const fetchDocuments = async () => {
     try {
       const response = await api.get('/documents');
-      setDocuments(response.data);
+      console.log('Documents API Response:', response.data);
+      
+      // Handle different response formats
+      let docs = [];
+      if (Array.isArray(response.data)) {
+        docs = response.data;
+      } else if (response.data.documents && Array.isArray(response.data.documents)) {
+        docs = response.data.documents;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        docs = response.data.data;
+      } else if (response.data && typeof response.data === 'object') {
+        // If it's a single object, wrap in array
+        docs = [response.data].filter(Boolean);
+      }
+      
+      setDocuments(docs);
     } catch (error) {
       console.error('Error fetching documents:', error);
+      setDocuments([]);
     } finally {
       setLoading(false);
     }
@@ -35,6 +51,7 @@ const Documents = () => {
       setDocuments(documents.filter(doc => doc._id !== id));
     } catch (error) {
       console.error('Error deleting document:', error);
+      alert('Failed to delete document. Please try again.');
     }
   };
 
@@ -51,14 +68,40 @@ const Documents = () => {
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${classes[status] || 'bg-gray-100 text-gray-700'}`}>
-        {labels[status] || status}
+        {labels[status] || status || 'Unknown'}
       </span>
     );
   };
 
-  const filteredDocuments = documents.filter(doc =>
-    doc.title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 KB';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return 'N/A';
+    }
+  };
+
+  // Ensure documents is always an array
+  const docs = Array.isArray(documents) ? documents : [];
+
+  // Filter documents by search term
+  const filteredDocuments = docs.filter(doc => {
+    if (!searchTerm) return true;
+    const title = doc.title || '';
+    return title.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   if (loading) return <Loading fullPage />;
 
@@ -69,15 +112,24 @@ const Documents = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
           <p className="text-gray-600 mt-1">
-            {documents.length} document{documents.length !== 1 ? 's' : ''} uploaded
+            {docs.length} document{docs.length !== 1 ? 's' : ''} uploaded
           </p>
         </div>
         <button
           onClick={() => setShowUpload(!showUpload)}
           className="btn-primary inline-flex items-center"
         >
-          <FileText className="h-4 w-4 mr-2" />
-          {showUpload ? 'Close Upload' : 'Upload Document'}
+          {showUpload ? (
+            <>
+              <X className="h-4 w-4 mr-2" />
+              Close Upload
+            </>
+          ) : (
+            <>
+              <Plus className="h-4 w-4 mr-2" />
+              Upload Document
+            </>
+          )}
         </button>
       </div>
 
@@ -93,7 +145,7 @@ const Documents = () => {
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
         <input
           type="text"
-          placeholder="Search documents..."
+          placeholder="Search documents by title..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="input-field pl-10"
@@ -101,7 +153,7 @@ const Documents = () => {
         {searchTerm && (
           <button
             onClick={() => setSearchTerm('')}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -110,7 +162,7 @@ const Documents = () => {
 
       {/* Document Grid */}
       {filteredDocuments.length === 0 ? (
-        <div className="text-center py-16">
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-600 text-lg">
             {searchTerm ? 'No documents match your search' : 'No documents uploaded yet'}
@@ -118,8 +170,9 @@ const Documents = () => {
           {!searchTerm && (
             <button
               onClick={() => setShowUpload(true)}
-              className="btn-primary mt-4"
+              className="btn-primary mt-4 inline-flex items-center"
             >
+              <Plus className="h-4 w-4 mr-2" />
               Upload Your First Document
             </button>
           )}
@@ -127,18 +180,18 @@ const Documents = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredDocuments.map((doc) => (
-            <div key={doc._id} className="card hover:shadow-md transition-shadow">
+            <div key={doc._id || doc.id || Math.random().toString()} className="card hover:shadow-lg transition-shadow duration-200">
               <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-primary-100 rounded-lg p-2">
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="bg-primary-100 rounded-lg p-2 flex-shrink-0">
                     <FileText className="h-6 w-6 text-primary-600" />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 line-clamp-1">
-                      {doc.title}
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-gray-900 truncate">
+                      {doc.title || 'Untitled'}
                     </h3>
                     <p className="text-xs text-gray-500">
-                      {doc.pageCount || 0} pages • {Math.round(doc.fileSize / 1024)} KB
+                      {doc.pageCount || 0} pages • {formatFileSize(doc.fileSize)}
                     </p>
                   </div>
                 </div>
@@ -149,25 +202,40 @@ const Documents = () => {
                 <div className="flex space-x-2">
                   {doc.status === 'completed' && (
                     <button
-                      onClick={() => navigate(`/chat/${doc._id}`)}
-                      className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
+                      onClick={() => navigate(`/chat/${doc._id || doc.id}`)}
+                      className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors inline-flex items-center"
                     >
+                      <MessageSquare className="h-3 w-3 mr-1" />
                       Chat
                     </button>
                   )}
                   <button
-                    onClick={() => handleDelete(doc._id)}
-                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    onClick={() => handleDelete(doc._id || doc.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete document"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
                 <span className="text-xs text-gray-400">
-                  {new Date(doc.createdAt).toLocaleDateString()}
+                  {formatDate(doc.createdAt)}
                 </span>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Upload Button at Bottom (if no upload section is shown) */}
+      {!showUpload && docs.length > 0 && (
+        <div className="text-center mt-8">
+          <button
+            onClick={() => setShowUpload(true)}
+            className="text-primary-600 hover:text-primary-700 text-sm font-medium inline-flex items-center"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Upload another document
+          </button>
         </div>
       )}
     </div>

@@ -15,10 +15,7 @@ const vectorSearch = async (query, documentId, limit = 5) => {
     }
 
     // Build match conditions
-    const matchConditions = { userId: documentId.userId };
-    if (documentId) {
-      matchConditions.documentId = documentId;
-    }
+    const matchConditions = { documentId };
 
     // Perform vector search using MongoDB's $vectorSearch
     // This works if you have a vector search index on the embedding field
@@ -72,10 +69,7 @@ const fallbackSearch = async (query, documentId, limit = 5) => {
       searchConditions.push({ content: { $regex: keyword, $options: 'i' } });
     }
 
-    const matchConditions = { userId: documentId.userId };
-    if (documentId) {
-      matchConditions.documentId = documentId;
-    }
+    const matchConditions = { documentId };
 
     // Search using regex
     const results = await Chunk.find({
