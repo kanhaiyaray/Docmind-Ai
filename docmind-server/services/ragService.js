@@ -2,38 +2,11 @@
 const aiService = require('./aiService');
 const Document = require('../models/Document');
 
-// Build RAG prompt
-const buildRAGPrompt = (context, question) => {
-  const contextText = context.map(chunk => 
-    `[Page ${chunk.pageNumber}]\n${chunk.content}`
-  ).join('\n\n');
-
-  return `You are DocMind, an AI document intelligence assistant.
-
-Your task is to answer the user's question using ONLY the provided document context.
-
-IMPORTANT RULES:
-1. Answer ONLY based on the provided context
-2. If the answer is not in the context, say "I couldn't find this information in the document"
-3. Always cite the source page numbers
-4. Be concise and helpful
-5. If multiple pages contain the answer, cite all of them
-6. Do not make up information
-
-CONTEXT:
-${contextText}
-
-USER QUESTION:
-${question}
-
-Your response should include the answer and the page numbers where the information was found.`;
-};
-
-// Process RAG query
+// Process RAG query – now passes raw context to aiService
 const processRAGQuery = async (question, documentId, userId) => {
   try {
     console.log(`🔍 Processing RAG query for document ${documentId}`);
-    
+
     // Get document info
     const document = await Document.findOne({
       _id: documentId,
@@ -57,9 +30,9 @@ const processRAGQuery = async (question, documentId, userId) => {
       console.error('❌ Search error:', searchError);
       throw new Error(`Search failed: ${searchError.message}`);
     }
-    
+
     console.log(`📄 Found ${relevantChunks ? relevantChunks.length : 0} relevant chunks`);
-    
+
     if (!relevantChunks || relevantChunks.length === 0) {
       return {
         answer: "I couldn't find any relevant information in this document for your question. Please try asking something else or check if the document has been properly processed.",
@@ -68,21 +41,17 @@ const processRAGQuery = async (question, documentId, userId) => {
       };
     }
 
-    // Build context from chunks
-    const context = relevantChunks.map(chunk => ({
-      content: chunk.content || chunk.text || '',
-      pageNumber: chunk.pageNumber || 1,
-      score: chunk.score || 0,
-    }));
+    // Build raw context string (with page numbers) – this will be wrapped by groqService
+    const contextText = relevantChunks.map(chunk =>
+      `[Page ${chunk.pageNumber || 1}]\n${chunk.content || chunk.text || ''}`
+    ).join('\n\n');
 
-    // Build prompt
-    const prompt = buildRAGPrompt(context, question);
-    console.log(`📝 Prompt built, sending to AI service...`);
+    console.log(`📝 Built raw context, sending to AI service...`);
 
-    // Get response from AI service (Groq)
+    // Pass question and raw context – aiService will wrap it properly
     let answer;
     try {
-      answer = await aiService.generateChatResponse(question, prompt);
+      answer = await aiService.generateChatResponse(question, contextText);
       console.log(`✅ Got response from AI service`);
     } catch (aiError) {
       console.error('❌ AI service error:', aiError);
@@ -90,8 +59,8 @@ const processRAGQuery = async (question, documentId, userId) => {
     }
 
     // Extract sources
-    const sources = context.map(c => ({
-      page: c.pageNumber,
+    const sources = relevantChunks.map(chunk => ({
+      page: chunk.pageNumber || 1,
       document: document.title,
       documentId: document._id,
     }));
@@ -99,7 +68,11 @@ const processRAGQuery = async (question, documentId, userId) => {
     return {
       answer,
       sources,
-      chunks: context,
+      chunks: relevantChunks.map(chunk => ({
+        content: chunk.content || chunk.text || '',
+        pageNumber: chunk.pageNumber || 1,
+        score: chunk.score || 0,
+      })),
     };
   } catch (error) {
     console.error('❌ RAG query error:', error);
@@ -107,7 +80,7 @@ const processRAGQuery = async (question, documentId, userId) => {
   }
 };
 
-// Multi-document RAG query
+// Multi-document RAG query – also updated to pass raw context
 const processMultiDocumentRAG = async (question, documentIds, userId) => {
   try {
     // Validate all documents exist and belong to user
@@ -145,49 +118,29 @@ const processMultiDocumentRAG = async (question, documentIds, userId) => {
       };
     }
 
-    // Build context
-    const context = topChunks.map(chunk => ({
-      content: chunk.content || chunk.text || '',
-      pageNumber: chunk.pageNumber || 1,
-      document: chunk.documentTitle,
-      documentId: chunk.documentId,
-    }));
-
-    // Build multi-document prompt
-    const contextText = context.map(c => 
-      `[${c.document} - Page ${c.pageNumber}]\n${c.content}`
+    // Build raw context with document titles and page numbers
+    const contextText = topChunks.map(chunk =>
+      `[${chunk.documentTitle || 'Document'} - Page ${chunk.pageNumber || 1}]\n${chunk.content || chunk.text || ''}`
     ).join('\n\n');
 
-    const prompt = `You are DocMind, an AI document intelligence assistant.
+    // Pass raw context – aiService will wrap
+    const answer = await aiService.generateChatResponse(question, contextText);
 
-You are analyzing multiple documents to answer the user's question.
-
-IMPORTANT RULES:
-1. Answer based ONLY on the provided context
-2. Cite which document and page number each piece of information comes from
-3. If the answer is not in the context, say so
-4. Compare and synthesize information from multiple documents
-
-CONTEXT:
-${contextText}
-
-USER QUESTION:
-${question}
-
-Provide a comprehensive answer citing sources from the documents.`;
-
-    const answer = await aiService.generateChatResponse(question, prompt);
-
-    const sources = context.map(c => ({
-      page: c.pageNumber,
-      document: c.document,
-      documentId: c.documentId,
+    const sources = topChunks.map(chunk => ({
+      page: chunk.pageNumber || 1,
+      document: chunk.documentTitle,
+      documentId: chunk.documentId,
     }));
 
     return {
       answer,
       sources,
-      chunks: context,
+      chunks: topChunks.map(chunk => ({
+        content: chunk.content || chunk.text || '',
+        pageNumber: chunk.pageNumber || 1,
+        document: chunk.documentTitle,
+        score: chunk.score || 0,
+      })),
     };
   } catch (error) {
     console.error('❌ Multi-document RAG error:', error);
@@ -198,5 +151,4 @@ Provide a comprehensive answer citing sources from the documents.`;
 module.exports = {
   processRAGQuery,
   processMultiDocumentRAG,
-  buildRAGPrompt,
 };

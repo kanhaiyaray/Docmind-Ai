@@ -76,7 +76,7 @@ const register = async (req, res) => {
       name,
       email: email.toLowerCase(),
       password,
-      isEmailVerified: false,
+      isEmailVerified: true,
     });
 
     await user.save();
@@ -113,7 +113,7 @@ const login = async (req, res) => {
     }
 
     const { email, password } = req.body;
-    
+
     console.log(`🔐 Login attempt for: ${email}`);
 
     const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
