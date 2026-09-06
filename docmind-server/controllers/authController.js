@@ -1,22 +1,68 @@
 ﻿const User = require('../models/User');
+const RefreshToken = require('../models/RefreshToken');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 
-// Generate JWT Token
 const generateToken = (userId) => {
   return jwt.sign(
     { userId },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    { expiresIn: '15m' }
   );
 };
 
-// @desc    Register user
-// @route   POST /api/auth/register
-// @access  Public
+const generateRefreshToken = async (userId) => {
+  const refreshToken = jwt.sign(
+    { userId },
+    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + '_refresh',
+    { expiresIn: '7d' }
+  );
+
+  await RefreshToken.create({
+    userId,
+    token: refreshToken,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  });
+
+  return refreshToken;
+};
+
+const setAuthCookies = (res, token, refreshToken) => {
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 15 * 60 * 1000,
+  });
+
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+};
+
+const clearAuthCookies = (res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
+  res.clearCookie('_csrf', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
+};
+
 const register = async (req, res) => {
   try {
-    // Check validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       const errorMessages = errors.array().map(e => e.msg).join(', ');
@@ -29,7 +75,6 @@ const register = async (req, res) => {
 
     const { name, email, password } = req.body;
 
-    // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(400).json({
@@ -38,23 +83,24 @@ const register = async (req, res) => {
       });
     }
 
-    // Create user
     const user = new User({
       name,
       email: email.toLowerCase(),
       password,
+      isEmailVerified: false,
     });
 
     await user.save();
 
-    // Generate token
     const token = generateToken(user._id);
+    const refreshToken = await generateRefreshToken(user._id);
 
-    // Return response
+    setAuthCookies(res, token, refreshToken);
+
     res.status(201).json({
       success: true,
-      token,
       user: user.getPublicProfile(),
+      message: 'Registration successful. Please verify your email.',
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -65,12 +111,8 @@ const register = async (req, res) => {
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
 const login = async (req, res) => {
   try {
-    // Check validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       const errorMessages = errors.array().map(e => e.msg).join(', ');
@@ -83,7 +125,6 @@ const login = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find user with password field included
     const user = await User.findOne({ email: email.toLowerCase() }).select(
       '+password'
     );
@@ -95,7 +136,6 @@ const login = async (req, res) => {
       });
     }
 
-    // Check if user is active
     if (!user.isActive) {
       return res.status(401).json({
         success: false,
@@ -103,7 +143,13 @@ const login = async (req, res) => {
       });
     }
 
-    // Compare password
+    if (!user.isEmailVerified) {
+      return res.status(401).json({
+        success: false,
+        message: 'Please verify your email before logging in',
+      });
+    }
+
     const isPasswordMatch = await user.comparePassword(password);
     if (!isPasswordMatch) {
       return res.status(401).json({
@@ -112,16 +158,16 @@ const login = async (req, res) => {
       });
     }
 
-    // Update last login
     user.lastLogin = new Date();
     await user.save();
 
-    // Generate token
     const token = generateToken(user._id);
+    const refreshToken = await generateRefreshToken(user._id);
+
+    setAuthCookies(res, token, refreshToken);
 
     res.json({
       success: true,
-      token,
       user: user.getPublicProfile(),
     });
   } catch (error) {
@@ -133,9 +179,129 @@ const login = async (req, res) => {
   }
 };
 
-// @desc    Get current user
-// @route   GET /api/auth/me
-// @access  Private
+const refreshToken = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'No refresh token provided',
+      });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(
+        refreshToken,
+        process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + '_refresh'
+      );
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid refresh token',
+      });
+    }
+
+    const storedToken = await RefreshToken.findOne({
+      token: refreshToken,
+      userId: decoded.userId,
+      isRevoked: false,
+    });
+
+    if (!storedToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token not found',
+      });
+    }
+
+    if (storedToken.expiresAt < new Date()) {
+      await RefreshToken.findByIdAndUpdate(storedToken._id, { isRevoked: true });
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token expired',
+      });
+    }
+
+    const user = await User.findById(decoded.userId);
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found or inactive',
+      });
+    }
+
+    const newToken = generateToken(user._id);
+
+    res.cookie('token', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.json({
+      success: true,
+      message: 'Token refreshed successfully',
+    });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during token refresh',
+    });
+  }
+};
+
+const logout = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (refreshToken) {
+      await RefreshToken.findOneAndUpdate(
+        { token: refreshToken },
+        { isRevoked: true }
+      );
+    }
+
+    clearAuthCookies(res);
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during logout',
+    });
+  }
+};
+
+const logoutAll = async (req, res) => {
+  try {
+    await RefreshToken.updateMany(
+      { userId: req.userId },
+      { isRevoked: true }
+    );
+
+    clearAuthCookies(res);
+
+    res.json({
+      success: true,
+      message: 'Logged out from all devices',
+    });
+  } catch (error) {
+    console.error('Logout all error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during logout all',
+    });
+  }
+};
+
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.userId);
@@ -159,9 +325,6 @@ const getMe = async (req, res) => {
   }
 };
 
-// @desc    Update user profile
-// @route   PUT /api/auth/profile
-// @access  Private
 const updateProfile = async (req, res) => {
   try {
     const { name, settings } = req.body;
@@ -192,9 +355,6 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// @desc    Change password
-// @route   PUT /api/auth/password
-// @access  Private
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -207,7 +367,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Verify current password
     const isMatch = await user.comparePassword(currentPassword);
     if (!isMatch) {
       return res.status(401).json({
@@ -216,7 +375,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Update password
     user.password = newPassword;
     await user.save();
 
@@ -236,6 +394,9 @@ const changePassword = async (req, res) => {
 module.exports = {
   register,
   login,
+  refreshToken,
+  logout,
+  logoutAll,
   getMe,
   updateProfile,
   changePassword,

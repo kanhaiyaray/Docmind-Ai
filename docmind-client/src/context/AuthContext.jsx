@@ -1,5 +1,5 @@
 ﻿import React, { createContext, useState, useContext, useEffect } from 'react';
-import api from '../services/api';
+import api, { clearCsrfToken, refreshCsrfToken } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -17,10 +17,8 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
-    
-    if (token && savedUser) {
+    if (savedUser) {
       setUser(JSON.parse(savedUser));
       verifyToken();
     } else {
@@ -34,9 +32,20 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data.user);
       localStorage.setItem('user', JSON.stringify(response.data.user));
     } catch (error) {
-      localStorage.removeItem('token');
+      console.error('Token verification failed:', error);
       localStorage.removeItem('user');
       setUser(null);
+      if (error.response?.status === 401 && error.response?.data?.code === 'TOKEN_EXPIRED') {
+        try {
+          await api.post('/auth/refresh', {});
+          const retryResponse = await api.get('/auth/me');
+          setUser(retryResponse.data.user);
+          localStorage.setItem('user', JSON.stringify(retryResponse.data.user));
+        } catch (refreshError) {
+          console.error('Refresh failed:', refreshError);
+          setUser(null);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -46,11 +55,12 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
       const response = await api.post('/auth/login', { email, password });
-      const { token, user } = response.data;
+      const { user } = response.data;
       
-      localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       setUser(user);
+      
+      await refreshCsrfToken();
       
       return { success: true };
     } catch (error) {
@@ -63,11 +73,12 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
       const response = await api.post('/auth/register', { name, email, password });
-      const { token, user } = response.data;
+      const { user } = response.data;
       
-      localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       setUser(user);
+      
+      await refreshCsrfToken();
       
       return { success: true };
     } catch (error) {
@@ -76,10 +87,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('user');
+      setUser(null);
+      clearCsrfToken();
+    }
+  };
+
+  const logoutAll = async () => {
+    try {
+      await api.post('/auth/logout-all');
+    } catch (error) {
+      console.error('Logout all error:', error);
+    } finally {
+      localStorage.removeItem('user');
+      setUser(null);
+      clearCsrfToken();
+    }
   };
 
   const value = {
@@ -89,6 +118,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    logoutAll,
     isAuthenticated: !!user,
   };
 

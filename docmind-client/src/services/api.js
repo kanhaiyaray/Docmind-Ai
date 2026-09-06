@@ -1,9 +1,7 @@
 ﻿import axios from 'axios';
 
-// Get API URL from environment or use default
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Create axios instance
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -13,13 +11,49 @@ const api = axios.create({
   timeout: 30000,
 });
 
-// Request interceptor - add token and log
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+let csrfToken = null;
+let csrfTokenPromise = null;
+
+const fetchCsrfToken = async () => {
+  if (csrfToken) return csrfToken;
+
+  if (csrfTokenPromise) return csrfTokenPromise;
+
+  csrfTokenPromise = (async () => {
+    try {
+      const response = await axios.get(`${API_URL}/csrf-token`, {
+        withCredentials: true,
+      });
+      csrfToken = response.data.csrfToken;
+      return csrfToken;
+    } catch (error) {
+      console.error('Failed to fetch CSRF token:', error);
+      throw error;
+    } finally {
+      csrfTokenPromise = null;
     }
+  })();
+
+  return csrfTokenPromise;
+};
+
+api.interceptors.request.use(
+  async (config) => {
+    const skipCsrf = 
+      config.url.includes('/auth/login') ||
+      config.url.includes('/auth/register') ||
+      config.url.includes('/auth/refresh') ||
+      config.method === 'get';
+
+    if (!skipCsrf && config.method !== 'get') {
+      try {
+        const token = await fetchCsrfToken();
+        config.headers['X-CSRF-Token'] = token;
+      } catch (error) {
+        console.error('Failed to add CSRF token:', error);
+      }
+    }
+
     console.log(`📡 ${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
     return config;
   },
@@ -29,14 +63,12 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor - handle errors
 api.interceptors.response.use(
   (response) => {
     console.log(`✅ Response: ${response.status} ${response.config.url}`);
     return response;
   },
-  (error) => {
-    // Handle connection refused
+  async (error) => {
     if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
       console.error('❌ Server connection error. Please make sure the backend server is running.');
       console.error(`   API URL: ${API_URL}`);
@@ -52,10 +84,33 @@ api.interceptors.response.use(
       });
     }
 
-    // Handle 401 Unauthorized
+    if (error.response?.status === 401 && error.response?.data?.code === 'TOKEN_EXPIRED') {
+      console.log('🔄 Token expired, attempting to refresh...');
+      
+      try {
+        const refreshResponse = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
+
+        if (refreshResponse.data.success) {
+          console.log('✅ Token refreshed successfully');
+          const originalRequest = error.config;
+          delete originalRequest.headers['X-CSRF-Token'];
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error('❌ Token refresh failed:', refreshError);
+        csrfToken = null;
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+    }
+
     if (error.response?.status === 401) {
       console.error('❌ Unauthorized - redirecting to login');
-      localStorage.removeItem('token');
+      csrfToken = null;
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
@@ -64,5 +119,16 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export const clearCsrfToken = () => {
+  csrfToken = null;
+  csrfTokenPromise = null;
+};
+
+export const refreshCsrfToken = () => {
+  csrfToken = null;
+  csrfTokenPromise = null;
+  return fetchCsrfToken();
+};
 
 export default api;

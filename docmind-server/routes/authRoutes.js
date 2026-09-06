@@ -4,13 +4,15 @@ const { body } = require('express-validator');
 const {
   register,
   login,
+  refreshToken,
+  logout,
+  logoutAll,
   getMe,
   updateProfile,
   changePassword,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
-// Validation rules
 const registerValidation = [
   body('name')
     .trim()
@@ -24,8 +26,14 @@ const registerValidation = [
     .withMessage('Please provide a valid email')
     .normalizeEmail(),
   body('password')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters'),
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/)
+    .withMessage('Password must contain an uppercase letter')
+    .matches(/[a-z]/)
+    .withMessage('Password must contain a lowercase letter')
+    .matches(/[0-9]/)
+    .withMessage('Password must contain a number'),
 ];
 
 const loginValidation = [
@@ -37,11 +45,12 @@ const loginValidation = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
-// Public routes
 router.post('/register', registerValidation, register);
 router.post('/login', loginValidation, login);
+router.post('/refresh', refreshToken);
 
-// Protected routes
+router.post('/logout', protect, logout);
+router.post('/logout-all', protect, logoutAll);
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfile);
 router.put('/password', protect, changePassword);

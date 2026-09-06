@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const cookieParser = require('cookie-parser');
+const csrf = require('csurf');
+const rateLimit = require('express-rate-limit');
 
 // Load environment variables
 dotenv.config();
@@ -46,7 +49,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-CSRF-Token'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   maxAge: 86400,
 }));
@@ -54,11 +57,69 @@ app.use(cors({
 app.options('*', cors());
 
 // ============================================
+// RATE LIMITING
+// ============================================
+const limiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW) * 60 * 1000 || 15 * 60 * 1000, // 15 minutes default
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 100, // 100 requests per window
+  message: {
+    success: false,
+    message: 'Too many requests, please try again later.',
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  skip: (req) => {
+    // Skip rate limiting for health check
+    return req.path === '/api/health';
+  },
+  keyGenerator: (req) => {
+    // Use userId if authenticated, otherwise IP address
+    return req.userId || req.ip;
+  },
+});
+
+// Apply rate limiting to all API routes
+app.use('/api', limiter);
+
+// ============================================
 // MIDDLEWARE
 // ============================================
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ============================================
+// CSRF PROTECTION
+// ============================================
+const csrfProtection = csrf({
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  },
+});
+
+// Apply CSRF protection to all routes except auth (they get their own)
+app.use((req, res, next) => {
+  // Skip CSRF for auth routes (login, register, refresh)
+  if (req.path.startsWith('/api/auth/') && 
+      (req.path.includes('/login') || 
+       req.path.includes('/register') || 
+       req.path.includes('/refresh'))) {
+    return next();
+  }
+  // Apply CSRF for all other routes
+  csrfProtection(req, res, next);
+});
+
+// CSRF token endpoint
+app.get('/api/csrf-token', csrfProtection, (req, res) => {
+  res.json({
+    success: true,
+    csrfToken: req.csrfToken(),
+  });
+});
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -87,7 +148,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================
-// 404 HANDLER - FIXED (No '*' route)
+// 404 HANDLER
 // ============================================
 app.use((req, res) => {
   res.status(404).json({
@@ -114,9 +175,11 @@ connectDB().then(() => {
     console.log('='.repeat(60));
     console.log(`📍 Server running on http://localhost:${PORT}`);
     console.log(`📄 Health check: http://localhost:${PORT}/api/health`);
+    console.log(`🔐 CSRF token: http://localhost:${PORT}/api/csrf-token`);
     console.log(`📁 Upload directory: ${path.join(__dirname, 'uploads')}`);
     console.log(`🔗 CORS allowed origins:`);
     allowedOrigins.forEach(origin => console.log(`   - ${origin}`));
+    console.log(`⏱️  Rate limiting: ${limiter.max} requests per ${limiter.windowMs/60000} minutes`);
     console.log('='.repeat(60));
     console.log('');
   });

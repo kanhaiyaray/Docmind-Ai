@@ -1,34 +1,27 @@
 {
-    "name": "docmind-server",
-    "version": "1.0.0",
-    "description": "DocMind AI Document Intelligence Backend",
-    "main": "server.js",
-    "scripts": {
-        "start": "node --max-old-space-size=4096 server.js",
-        "dev": "nodemon --max-old-space-size=4096 server.js"
-    },
-    "keywords": [
-        "docmind",
-        "rag",
-        "ai",
-        "mern"
-    ],
-    "author": "",
-    "license": "ISC",
-    "dependencies": {
-        "bcryptjs": "^2.4.3",
-        "cors": "^2.8.6",
-        "dotenv": "^16.6.1",
-        "express": "^5.2.1",
-        "express-rate-limit": "^7.1.5",
-        "express-validator": "^7.0.1",
-        "groq-sdk": "^1.6.0",
-        "jsonwebtoken": "^9.0.3",
-        "mongoose": "^8.24.4",
-        "multer": "^1.4.5-lts.2",
-        "pdf-parse": "^1.1.4"
-    },
-    "devDependencies": {
-        "nodemon": "^3.1.14"
-    }
+  "name": "docmind-server",
+  "version": "1.0.0",
+  "description": "DocMind backend with CSRF protection",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "csurf": "^1.11.0",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.7.0",
+    "express-validator": "^6.14.2",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^6.8.0",
+    "multer": "^2.3.0",
+    "pdf-parse": "^2.4.5"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.20"
+  }
 }

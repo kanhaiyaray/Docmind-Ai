@@ -24,8 +24,8 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, 'Please provide a password'],
-      minlength: [6, 'Password must be at least 6 characters'],
-      select: false, // Don't return password by default
+      minlength: [8, 'Password must be at least 8 characters'],
+      select: false,
     },
     role: {
       type: String,
@@ -36,8 +36,36 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationToken: {
+      type: String,
+      select: false,
+    },
+    emailVerificationExpires: {
+      type: Date,
+      select: false,
+    },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      select: false,
+    },
     lastLogin: {
       type: Date,
+    },
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    accountLockedUntil: {
+      type: Date,
+      default: null,
     },
     profilePicture: {
       type: String,
@@ -60,15 +88,13 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Hash password before saving
 userSchema.pre('save', async function (next) {
-  // Only hash if password is modified
   if (!this.isModified('password')) {
     return next();
   }
 
   try {
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {
@@ -76,22 +102,40 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-// Compare password method
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Get public profile (exclude sensitive data)
 userSchema.methods.getPublicProfile = function () {
   const userObject = this.toObject();
   delete userObject.password;
   delete userObject.__v;
+  delete userObject.emailVerificationToken;
+  delete userObject.emailVerificationExpires;
+  delete userObject.resetPasswordToken;
+  delete userObject.resetPasswordExpires;
+  delete userObject.failedLoginAttempts;
+  delete userObject.accountLockedUntil;
   return userObject;
 };
 
-// Static method to find by email
-userSchema.statics.findByEmail = function (email) {
-  return this.findOne({ email: email.toLowerCase() });
+userSchema.methods.isAccountLocked = function () {
+  if (!this.accountLockedUntil) return false;
+  return this.accountLockedUntil > new Date();
+};
+
+userSchema.methods.incrementFailedLoginAttempts = async function () {
+  this.failedLoginAttempts += 1;
+  if (this.failedLoginAttempts >= 5) {
+    this.accountLockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+  }
+  await this.save();
+};
+
+userSchema.methods.resetFailedLoginAttempts = async function () {
+  this.failedLoginAttempts = 0;
+  this.accountLockedUntil = null;
+  await this.save();
 };
 
 const User = mongoose.model('User', userSchema);
