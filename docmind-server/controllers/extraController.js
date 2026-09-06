@@ -1,6 +1,6 @@
 ﻿const Document = require('../models/Document');
 const Chunk = require('../models/Chunk');
-const { generateChatResponse } = require('../config/gemini');
+const { generateChatResponse } = require('../config/groq');
 
 // @desc    Generate document summary
 // @route   POST /api/documents/summary
@@ -39,7 +39,7 @@ exports.generateSummary = async (req, res) => {
       });
     }
     
-    // Generate summary using Gemini
+    // Generate summary using Groq
     const prompt = `Summarize the following document concisely. Focus on the main points, key findings, and conclusions.\n\n${fullText.substring(0, 15000)}`;
     const summary = await generateChatResponse(prompt);
     

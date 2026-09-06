@@ -1,42 +1,60 @@
 ﻿const Chunk = require('../models/Chunk');
-const { generateEmbedding, generateBatchEmbeddings } = require('../config/gemini');
+const aiService = require('./aiService');
 
-// Generate and store embeddings for chunks
+// Generate and store embeddings for chunks - optimized
 const generateAndStoreEmbeddings = async (chunks) => {
   try {
     if (!chunks || chunks.length === 0) return [];
 
-    // Extract content from chunks
-    const contents = chunks.map(chunk => chunk.content);
-    
-    // Generate embeddings in batches to avoid rate limits
-    const batchSize = 10;
+    const batchSize = 5;
     const embeddings = [];
+    let processed = 0;
     
-    for (let i = 0; i < contents.length; i += batchSize) {
-      const batch = contents.slice(i, i + batchSize);
-      const batchEmbeddings = await generateBatchEmbeddings(batch);
+    for (let i = 0; i < chunks.length; i += batchSize) {
+      const batch = chunks.slice(i, i + batchSize);
+      const batchContents = batch.map(chunk => chunk.content);
+      
+      // Use AI service for embeddings
+      const batchEmbeddings = await aiService.generateBatchEmbeddings(batchContents);
       embeddings.push(...batchEmbeddings);
       
-      // Small delay to avoid rate limiting
-      if (i + batchSize < contents.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+      processed += batch.length;
+      console.log(`🧠 Generated embeddings for ${processed}/${chunks.length} chunks`);
+      
+      if (i + batchSize < chunks.length) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
+      if (global.gc) {
+        global.gc();
       }
     }
 
-    // Update chunks with embeddings
-    const updatePromises = chunks.map((chunk, index) => {
-      return Chunk.findByIdAndUpdate(
-        chunk._id,
-        { embedding: embeddings[index] },
-        { new: true }
-      );
-    });
+    const updateBatchSize = 20;
+    let updated = 0;
+    
+    for (let i = 0; i < chunks.length; i += updateBatchSize) {
+      const batch = chunks.slice(i, i + updateBatchSize);
+      const updatePromises = batch.map((chunk, index) => {
+        const globalIndex = i + index;
+        return Chunk.findByIdAndUpdate(
+          chunk._id,
+          { embedding: embeddings[globalIndex] },
+          { new: true }
+        );
+      });
+      
+      await Promise.all(updatePromises);
+      updated += batch.length;
+      console.log(`💾 Updated ${updated}/${chunks.length} chunks with embeddings`);
+      
+      if (global.gc) {
+        global.gc();
+      }
+    }
 
-    const updatedChunks = await Promise.all(updatePromises);
-    console.log(`✅ Generated ${updatedChunks.length} embeddings`);
-
-    return updatedChunks;
+    console.log(`✅ Generated ${embeddings.length} embeddings`);
+    return chunks;
   } catch (error) {
     console.error('Embedding generation error:', error);
     throw new Error(`Failed to generate embeddings: ${error.message}`);
@@ -46,7 +64,7 @@ const generateAndStoreEmbeddings = async (chunks) => {
 // Generate embedding for single text
 const generateEmbeddingForText = async (text) => {
   try {
-    return await generateEmbedding(text);
+    return await aiService.generateEmbedding(text);
   } catch (error) {
     console.error('Embedding generation error:', error);
     throw new Error(`Failed to generate embedding: ${error.message}`);
@@ -82,10 +100,22 @@ const regenerateMissingEmbeddings = async () => {
   await generateAndStoreEmbeddings(chunks);
 };
 
+// Generate chat response using unified AI service
+const generateChatResponse = async (prompt, context) => {
+  return await aiService.generateChatResponse(prompt, context);
+};
+
+// Generate chat stream using unified AI service
+const generateChatStream = async (prompt, context) => {
+  return await aiService.generateChatStream(prompt, context);
+};
+
 module.exports = {
   generateAndStoreEmbeddings,
   generateEmbeddingForText,
   getChunkEmbedding,
   chunksHaveEmbeddings,
   regenerateMissingEmbeddings,
+  generateChatResponse,
+  generateChatStream,
 };

@@ -1,31 +1,40 @@
 ﻿const fs = require('fs');
 const pdf = require('pdf-parse');
 
+// Helper: Convert PDF date format to valid Date
+const convertPDFDate = (pdfDate) => {
+  if (!pdfDate) return null;
+  
+  try {
+    // PDF date format: D:YYYYMMDDHHmmSS±HH'mm'
+    const match = pdfDate.match(/D:(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})([+-])(\d{2})'(\d{2})'/);
+    
+    if (match) {
+      const [, year, month, day, hour, minute, second, sign, tzHour, tzMinute] = match;
+      const tzOffset = `${sign}${tzHour}:${tzMinute}`;
+      const dateStr = `${year}-${month}-${day}T${hour}:${minute}:${second}${tzOffset}`;
+      return new Date(dateStr);
+    }
+    
+    const date = new Date(pdfDate);
+    return isNaN(date.getTime()) ? null : date;
+  } catch (error) {
+    return null;
+  }
+};
+
 // Extract text from PDF file
 const extractText = async (filePath) => {
   try {
-    // Read PDF file
     const dataBuffer = fs.readFileSync(filePath);
-    
-    // Parse PDF
     const data = await pdf(dataBuffer);
     
-    // Extract pages
     const pages = [];
-    const pageTexts = data.text.split('\n\n');
-    
-    // Note: pdf-parse doesn't provide page-by-page extraction directly
-    // We'll split by page markers or use a heuristic
-    // For better page detection, consider using pdf-lib or pdf2json
-    
-    // Simple page splitting - improved heuristic
-    const pageDelimiters = ['Page ', '', '\x0c', '\f'];
+    const lines = data.text.split('\n');
     let currentPage = 1;
     let currentText = '';
     
-    const lines = data.text.split('\n');
     for (const line of lines) {
-      // Check for page break
       if (line.includes('') || line.includes('\x0c') || line.includes('\f')) {
         if (currentText.trim()) {
           pages.push({
@@ -38,7 +47,6 @@ const extractText = async (filePath) => {
         continue;
       }
       
-      // Check for page number pattern
       const pageMatch = line.match(/Page\s+(\d+)/i);
       if (pageMatch && parseInt(pageMatch[1]) === currentPage + 1) {
         if (currentText.trim()) {
@@ -55,7 +63,6 @@ const extractText = async (filePath) => {
       currentText += line + '\n';
     }
     
-    // Add last page
     if (currentText.trim()) {
       pages.push({
         pageNumber: currentPage,
@@ -63,7 +70,6 @@ const extractText = async (filePath) => {
       });
     }
     
-    // If we couldn't detect pages properly, distribute text evenly
     if (pages.length === 0 || pages.length < 2) {
       const totalPages = Math.max(1, Math.ceil(data.text.length / 3000));
       const charsPerPage = Math.ceil(data.text.length / totalPages);
@@ -87,8 +93,8 @@ const extractText = async (filePath) => {
         author: data.info?.Author || '',
         subject: data.info?.Subject || '',
         keywords: data.info?.Keywords || '',
-        creationDate: data.info?.CreationDate,
-        modificationDate: data.info?.ModDate,
+        creationDate: convertPDFDate(data.info?.CreationDate),
+        modificationDate: convertPDFDate(data.info?.ModDate),
       },
     };
   } catch (error) {
@@ -97,7 +103,7 @@ const extractText = async (filePath) => {
   }
 };
 
-// Get PDF metadata only (without full text)
+// Get PDF metadata only
 const getMetadata = async (filePath) => {
   try {
     const dataBuffer = fs.readFileSync(filePath);
@@ -109,8 +115,8 @@ const getMetadata = async (filePath) => {
       subject: data.info?.Subject || '',
       keywords: data.info?.Keywords || '',
       pageCount: data.numpages || 0,
-      creationDate: data.info?.CreationDate,
-      modificationDate: data.info?.ModDate,
+      creationDate: convertPDFDate(data.info?.CreationDate),
+      modificationDate: convertPDFDate(data.info?.ModDate),
     };
   } catch (error) {
     console.error('PDF metadata error:', error);

@@ -1,7 +1,6 @@
 ﻿const { searchDocument } = require('./vectorSearchService');
-const { generateChatResponse } = require('../config/gemini');
+const aiService = require('./aiService');
 const Document = require('../models/Document');
-const Chunk = require('../models/Chunk');
 
 // Build RAG prompt
 const buildRAGPrompt = (context, question) => {
@@ -50,11 +49,18 @@ const processRAGQuery = async (question, documentId, userId) => {
     }
 
     // Search for relevant chunks
-    const relevantChunks = await searchDocument(question, documentId, 5);
+    console.log(`🔍 Searching for relevant chunks...`);
+    let relevantChunks;
+    try {
+      relevantChunks = await searchDocument(question, documentId, 5);
+    } catch (searchError) {
+      console.error('❌ Search error:', searchError);
+      throw new Error(`Search failed: ${searchError.message}`);
+    }
     
-    console.log(`📄 Found ${relevantChunks.length} relevant chunks`);
+    console.log(`📄 Found ${relevantChunks ? relevantChunks.length : 0} relevant chunks`);
     
-    if (relevantChunks.length === 0) {
+    if (!relevantChunks || relevantChunks.length === 0) {
       return {
         answer: "I couldn't find any relevant information in this document for your question. Please try asking something else or check if the document has been properly processed.",
         sources: [],
@@ -71,11 +77,17 @@ const processRAGQuery = async (question, documentId, userId) => {
 
     // Build prompt
     const prompt = buildRAGPrompt(context, question);
-    console.log(`📝 Prompt built, sending to Gemini...`);
+    console.log(`📝 Prompt built, sending to AI service...`);
 
-    // Get response from LLM
-    const answer = await generateChatResponse(prompt);
-    console.log(`✅ Got response from Gemini`);
+    // Get response from AI service (Groq)
+    let answer;
+    try {
+      answer = await aiService.generateChatResponse(question, prompt);
+      console.log(`✅ Got response from AI service`);
+    } catch (aiError) {
+      console.error('❌ AI service error:', aiError);
+      throw new Error(`AI service failed: ${aiError.message}`);
+    }
 
     // Extract sources
     const sources = context.map(c => ({
@@ -90,7 +102,7 @@ const processRAGQuery = async (question, documentId, userId) => {
       chunks: context,
     };
   } catch (error) {
-    console.error('RAG query error:', error);
+    console.error('❌ RAG query error:', error);
     throw new Error(`Failed to process query: ${error.message}`);
   }
 };
@@ -164,7 +176,7 @@ ${question}
 
 Provide a comprehensive answer citing sources from the documents.`;
 
-    const answer = await generateChatResponse(prompt);
+    const answer = await aiService.generateChatResponse(question, prompt);
 
     const sources = context.map(c => ({
       page: c.pageNumber,
@@ -178,7 +190,7 @@ Provide a comprehensive answer citing sources from the documents.`;
       chunks: context,
     };
   } catch (error) {
-    console.error('Multi-document RAG error:', error);
+    console.error('❌ Multi-document RAG error:', error);
     throw new Error(`Failed to process multi-document query: ${error.message}`);
   }
 };

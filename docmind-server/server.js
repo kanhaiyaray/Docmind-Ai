@@ -22,7 +22,7 @@ const errorMiddleware = require('./middleware/errorMiddleware');
 const app = express();
 
 // ============================================
-// CORS CONFIGURATION - FIXED
+// CORS CONFIGURATION
 // ============================================
 const allowedOrigins = [
   'http://localhost:5173',
@@ -36,9 +36,7 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
@@ -50,13 +48,14 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  maxAge: 86400, // 24 hours
+  maxAge: 86400,
 }));
 
-// Pre-flight requests
 app.options('*', cors());
 
-// Middleware
+// ============================================
+// MIDDLEWARE
+// ============================================
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -64,11 +63,15 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Request logging middleware
 app.use((req, res, next) => {
   console.log(`📡 ${req.method} ${req.url}`);
-  console.log(`   Origin: ${req.headers.origin || 'No origin'}`);
+  if (req.headers.origin) {
+    console.log(`   Origin: ${req.headers.origin}`);
+  }
   next();
 });
 
-// Routes
+// ============================================
+// ROUTES
+// ============================================
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/chat', chatRoutes);
@@ -83,7 +86,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 404 handler
+// ============================================
+// 404 HANDLER - FIXED (No '*' route)
+// ============================================
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -91,10 +96,14 @@ app.use((req, res) => {
   });
 });
 
-// Error handling middleware (must be last)
+// ============================================
+// ERROR HANDLING MIDDLEWARE
+// ============================================
 app.use(errorMiddleware);
 
-// Start server
+// ============================================
+// START SERVER
+// ============================================
 const PORT = process.env.PORT || 5000;
 
 connectDB().then(() => {

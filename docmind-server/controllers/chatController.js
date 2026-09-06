@@ -7,16 +7,30 @@ const Document = require('../models/Document');
 // @access  Private
 const sendMessage = async (req, res) => {
   try {
+    console.log('📝 Chat request received');
+    console.log('   req.userId:', req.userId);
+    console.log('   req.body:', req.body);
+    
     const { question, documentId } = req.body;
 
-    if (!question || !documentId) {
+    // Validate inputs
+    if (!question || !question.trim()) {
+      console.log('❌ Question is empty');
       return res.status(400).json({
         success: false,
-        message: 'Question and documentId are required',
+        message: 'Question is required',
       });
     }
 
-    console.log(`📝 Chat request: question="${question}" documentId="${documentId}"`);
+    if (!documentId) {
+      console.log('❌ Document ID is empty');
+      return res.status(400).json({
+        success: false,
+        message: 'Document ID is required',
+      });
+    }
+
+    console.log(`🔍 Checking document: ${documentId} for user: ${req.userId}`);
 
     // Check if document exists and belongs to user
     const document = await Document.findOne({
@@ -25,13 +39,17 @@ const sendMessage = async (req, res) => {
     });
 
     if (!document) {
+      console.log(`❌ Document not found: ${documentId}`);
       return res.status(404).json({
         success: false,
         message: 'Document not found',
       });
     }
 
+    console.log(`📄 Document found: ${document.title}, status: ${document.status}`);
+
     if (document.status !== 'completed') {
+      console.log(`❌ Document not ready: ${document.status}`);
       return res.status(400).json({
         success: false,
         message: `Document is ${document.status}. Please wait for processing to complete.`,
@@ -45,10 +63,11 @@ const sendMessage = async (req, res) => {
     });
 
     if (!conversation) {
+      console.log(`🆕 Creating new conversation for document: ${documentId}`);
       conversation = new Conversation({
         userId: req.userId,
         documentId: documentId,
-        title: document.title,
+        title: document.title || 'Untitled',
         messages: [],
       });
     }
@@ -56,18 +75,37 @@ const sendMessage = async (req, res) => {
     // Add user message
     conversation.messages.push({
       role: 'user',
-      content: question,
+      content: question.trim(),
     });
 
-    // Process RAG query
+    console.log(`🧠 Processing RAG query...`);
     const startTime = Date.now();
-    const result = await processRAGQuery(question, documentId, req.userId);
+    
+    let result;
+    try {
+      result = await processRAGQuery(question, documentId, req.userId);
+      console.log(`✅ RAG query completed in ${Date.now() - startTime}ms`);
+    } catch (ragError) {
+      console.error('❌ RAG Query Error:', ragError);
+      console.error('   Stack:', ragError.stack);
+      // Remove the user message we added
+      conversation.messages.pop();
+      await conversation.save();
+      
+      return res.status(500).json({
+        success: false,
+        message: `Failed to process query: ${ragError.message}`,
+        error: ragError.message,
+        stack: ragError.stack,
+      });
+    }
+    
     const processingTime = Date.now() - startTime;
 
     // Add assistant message with sources
     conversation.messages.push({
       role: 'assistant',
-      content: result.answer,
+      content: result.answer || 'No response generated.',
       sources: result.sources || [],
     });
 
@@ -86,10 +124,13 @@ const sendMessage = async (req, res) => {
       processingTime,
     });
   } catch (error) {
-    console.error('Chat error:', error);
+    console.error('❌ Chat error:', error);
+    console.error('   Stack:', error.stack);
     res.status(500).json({
       success: false,
       message: error.message || 'Error processing chat message',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 };
@@ -108,12 +149,10 @@ const sendMultiDocumentMessage = async (req, res) => {
       });
     }
 
-    // Process multi-document RAG
     const startTime = Date.now();
     const result = await processMultiDocumentRAG(question, documentIds, req.userId);
     const processingTime = Date.now() - startTime;
 
-    // Save to first document's conversation
     const firstDocId = documentIds[0];
     let conversation = await Conversation.findOne({
       userId: req.userId,
@@ -152,7 +191,7 @@ const sendMultiDocumentMessage = async (req, res) => {
       processingTime,
     });
   } catch (error) {
-    console.error('Multi-document chat error:', error);
+    console.error('❌ Multi-document chat error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Error processing multi-document chat',
@@ -180,7 +219,7 @@ const getChatHistory = async (req, res) => {
       conversations,
     });
   } catch (error) {
-    console.error('Get chat history error:', error);
+    console.error('❌ Get chat history error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching chat history',
@@ -210,7 +249,7 @@ const getConversation = async (req, res) => {
       conversation,
     });
   } catch (error) {
-    console.error('Get conversation error:', error);
+    console.error('❌ Get conversation error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching conversation',
@@ -240,7 +279,7 @@ const deleteConversation = async (req, res) => {
       message: 'Conversation deleted successfully',
     });
   } catch (error) {
-    console.error('Delete conversation error:', error);
+    console.error('❌ Delete conversation error:', error);
     res.status(500).json({
       success: false,
       message: 'Error deleting conversation',
@@ -263,7 +302,7 @@ const clearChatHistory = async (req, res) => {
       message: `Cleared ${result.deletedCount} conversations`,
     });
   } catch (error) {
-    console.error('Clear chat history error:', error);
+    console.error('❌ Clear chat history error:', error);
     res.status(500).json({
       success: false,
       message: 'Error clearing chat history',

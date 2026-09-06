@@ -7,16 +7,15 @@ const OVERLAP = parseInt(process.env.OVERLAP) || 150;
 // Chunk document pages into smaller pieces
 const chunkDocument = async (documentId, userId, pages) => {
   try {
-    const chunks = [];
-    const insertBatchSize = 100; // Insert chunks in batches
+    const insertBatchSize = 50;
     let chunkIndex = 0;
     let totalChunks = 0;
+    let chunks = [];
 
     for (const page of pages) {
       const pageText = page.text;
       const pageNumber = page.pageNumber;
 
-      // Split page text into chunks with overlap
       const pageChunks = splitTextIntoChunks(pageText, CHUNK_SIZE, OVERLAP);
 
       for (const chunkText of pageChunks) {
@@ -29,7 +28,7 @@ const chunkDocument = async (documentId, userId, pages) => {
           pageNumber,
           chunkIndex: chunkIndex++,
           metadata: {
-            filename: '', // Will be filled later if needed
+            filename: '',
             pageNumber,
             chunkSize: chunkText.length,
           },
@@ -37,52 +36,48 @@ const chunkDocument = async (documentId, userId, pages) => {
           wordCount: chunkText.split(/\s+/).length,
         });
 
-        // Batch insert to avoid memory buildup
         if (chunks.length >= insertBatchSize) {
           await Chunk.insertMany(chunks);
           totalChunks += chunks.length;
           console.log(`✅ Inserted ${totalChunks} chunks so far...`);
-          chunks.length = 0; // Clear array
+          chunks = [];
+          if (global.gc) {
+            global.gc();
+          }
         }
       }
     }
 
-    // Insert remaining chunks
     if (chunks.length > 0) {
       await Chunk.insertMany(chunks);
       totalChunks += chunks.length;
     }
 
     console.log(`✅ Created ${totalChunks} total chunks for document ${documentId}`);
-    return chunks;
+    return totalChunks;
   } catch (error) {
     console.error('Chunking error:', error);
     throw new Error(`Failed to chunk document: ${error.message}`);
   }
 };
 
-// Split text into overlapping chunks
 const splitTextIntoChunks = (text, chunkSize, overlap) => {
   if (!text || text.length === 0) return [];
 
   const chunks = [];
   let start = 0;
-
-  // Clean text - remove extra whitespace
   const cleanedText = text.replace(/\s+/g, ' ').trim();
+  const textLength = cleanedText.length;
 
-  while (start < cleanedText.length) {
-    let end = Math.min(start + chunkSize, cleanedText.length);
+  while (start < textLength) {
+    let end = Math.min(start + chunkSize, textLength);
 
-    // Try to break at sentence boundary
-    if (end < cleanedText.length) {
-      // Look for sentence ending within last 50 chars
+    if (end < textLength) {
       const searchStart = Math.max(start, end - 50);
       const searchEnd = end;
       const searchText = cleanedText.substring(searchStart, searchEnd);
       
-      // Find last sentence ending
-      const sentenceEndings = ['. ', '? ', '! ', '.\n', '?\n', '!\n'];
+      const sentenceEndings = ['. ', '? ', '! ', '.\n', '?\n', '!\n', '.', '?', '!'];
       let lastEnding = -1;
       
       for (const ending of sentenceEndings) {
@@ -95,7 +90,6 @@ const splitTextIntoChunks = (text, chunkSize, overlap) => {
       if (lastEnding > 0) {
         end = searchStart + lastEnding + 1;
       } else {
-        // Try to break at whitespace
         const lastSpace = cleanedText.lastIndexOf(' ', end);
         if (lastSpace > start) {
           end = lastSpace;
@@ -108,38 +102,29 @@ const splitTextIntoChunks = (text, chunkSize, overlap) => {
       chunks.push(chunk);
     }
 
-    // Move start forward with overlap
-    start = end - overlap;
-    if (start < end - overlap) {
-      start = end - overlap;
-    }
-    if (start >= cleanedText.length) break;
+    start = Math.max(start + 1, end - overlap);
+    if (start >= textLength) break;
   }
 
   return chunks;
 };
 
-// Get chunks for a document
 const getDocumentChunks = async (documentId) => {
   return await Chunk.find({ documentId }).sort({ chunkIndex: 1 });
 };
 
-// Get chunks by page
 const getChunksByPage = async (documentId, pageNumber) => {
   return await Chunk.find({ documentId, pageNumber }).sort({ chunkIndex: 1 });
 };
 
-// Delete chunks for a document
 const deleteDocumentChunks = async (documentId) => {
   return await Chunk.deleteMany({ documentId });
 };
 
-// Get total chunks count for a document
 const getChunkCount = async (documentId) => {
   return await Chunk.countDocuments({ documentId });
 };
 
-// Get chunk statistics
 const getChunkStats = async (userId) => {
   const stats = await Chunk.aggregate([
     { $match: { userId: userId } },
