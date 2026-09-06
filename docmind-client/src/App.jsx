@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
+import { Toaster } from 'react-hot-toast';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -25,39 +26,37 @@ function AppContent() {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/*" element={
-        <PrivateRoute>
-          <div className="app-container">
-            <Sidebar />
-            <div className="main-content">
-              <Topbar />
-              <div style={{ padding: '24px 32px' }}>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/documents" element={<Documents />} />
-                  <Route path="/chat/:documentId?" element={<Chat />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
+    <>
+      <Toaster position="top-right" toastOptions={{ duration: 4000, style: { background: '#fff', color: '#1a1a2e' } }} />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/*" element={
+          <PrivateRoute>
+            <div className="app-container">
+              <Sidebar />
+              <div className="main-content">
+                <Topbar />
+                <div style={{ padding: '24px 32px' }}>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/documents" element={<Documents />} />
+                    <Route path="/chat/:documentId?" element={<Chat />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </div>
               </div>
             </div>
-          </div>
-        </PrivateRoute>
-      } />
-    </Routes>
+          </PrivateRoute>
+        } />
+      </Routes>
+    </>
   );
 }
 
 function App() {
   return (
-    <Router
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <AppContent />
       </AuthProvider>
