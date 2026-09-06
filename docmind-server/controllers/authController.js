@@ -28,37 +28,26 @@ const generateRefreshToken = async (userId) => {
 };
 
 const setAuthCookies = (res, token, refreshToken) => {
-  res.cookie('token', token, {
+  const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
     maxAge: 15 * 60 * 1000,
-  });
+  };
+  res.cookie('token', token, cookieOptions);
 
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
 
 const clearAuthCookies = (res) => {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-  });
-  res.clearCookie('refreshToken', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-  });
-  res.clearCookie('_csrf', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-  });
+  res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
+  res.clearCookie('refreshToken', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
+  res.clearCookie('_csrf', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
 };
 
 const register = async (req, res) => {
@@ -100,7 +89,7 @@ const register = async (req, res) => {
     res.status(201).json({
       success: true,
       user: user.getPublicProfile(),
-      message: 'Registration successful. Please verify your email.',
+      message: 'Registration successful',
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -124,19 +113,21 @@ const login = async (req, res) => {
     }
 
     const { email, password } = req.body;
+    
+    console.log(`🔐 Login attempt for: ${email}`);
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select(
-      '+password'
-    );
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
 
     if (!user) {
+      console.log(`❌ User not found: ${email}`);
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials',
+        message: 'Invalid email or password',
       });
     }
 
     if (!user.isActive) {
+      console.log(`❌ Account deactivated: ${email}`);
       return res.status(401).json({
         success: false,
         message: 'Account is deactivated',
@@ -144,6 +135,7 @@ const login = async (req, res) => {
     }
 
     if (!user.isEmailVerified) {
+      console.log(`❌ Email not verified: ${email}`);
       return res.status(401).json({
         success: false,
         message: 'Please verify your email before logging in',
@@ -152,9 +144,10 @@ const login = async (req, res) => {
 
     const isPasswordMatch = await user.comparePassword(password);
     if (!isPasswordMatch) {
+      console.log(`❌ Invalid password for: ${email}`);
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials',
+        message: 'Invalid email or password',
       });
     }
 
@@ -165,6 +158,8 @@ const login = async (req, res) => {
     const refreshToken = await generateRefreshToken(user._id);
 
     setAuthCookies(res, token, refreshToken);
+
+    console.log(`✅ Login successful: ${email}`);
 
     res.json({
       success: true,
@@ -237,7 +232,7 @@ const refreshToken = async (req, res) => {
     res.cookie('token', newToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 15 * 60 * 1000,
     });
 

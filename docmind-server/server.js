@@ -7,21 +7,14 @@ const cookieParser = require('cookie-parser');
 const csrf = require('csurf');
 const rateLimit = require('express-rate-limit');
 
-// Load environment variables
 dotenv.config();
 
-// Import config
 const connectDB = require('./config/db');
-
-// Import routes
 const authRoutes = require('./routes/authRoutes');
 const documentRoutes = require('./routes/documentRoutes');
 const chatRoutes = require('./routes/chatRoutes');
-
-// Import middleware
 const errorMiddleware = require('./middleware/errorMiddleware');
 
-// Initialize express
 const app = express();
 
 // ============================================
@@ -60,25 +53,18 @@ app.options('*', cors());
 // RATE LIMITING
 // ============================================
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW) * 60 * 1000 || 15 * 60 * 1000, // 15 minutes default
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100, // 100 requests per window
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW) * 60 * 1000 || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
   message: {
     success: false,
     message: 'Too many requests, please try again later.',
   },
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  skip: (req) => {
-    // Skip rate limiting for health check
-    return req.path === '/api/health';
-  },
-  keyGenerator: (req) => {
-    // Use userId if authenticated, otherwise IP address
-    return req.userId || req.ip;
-  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/api/health',
+  keyGenerator: (req) => req.userId || req.ip,
 });
 
-// Apply rate limiting to all API routes
 app.use('/api', limiter);
 
 // ============================================
@@ -89,6 +75,18 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Log all requests
+app.use((req, res, next) => {
+  console.log(`📡 ${req.method} ${req.url}`);
+  if (req.headers.origin) {
+    console.log(`   Origin: ${req.headers.origin}`);
+  }
+  if (req.method === 'POST' && req.url.includes('/auth/login')) {
+    console.log(`   Body:`, { email: req.body?.email });
+  }
+  next();
+});
+
 // ============================================
 // CSRF PROTECTION
 // ============================================
@@ -96,20 +94,18 @@ const csrfProtection = csrf({
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
   },
 });
 
-// Apply CSRF protection to all routes except auth (they get their own)
+// Skip CSRF for auth routes
 app.use((req, res, next) => {
-  // Skip CSRF for auth routes (login, register, refresh)
   if (req.path.startsWith('/api/auth/') && 
       (req.path.includes('/login') || 
        req.path.includes('/register') || 
        req.path.includes('/refresh'))) {
     return next();
   }
-  // Apply CSRF for all other routes
   csrfProtection(req, res, next);
 });
 
@@ -119,15 +115,6 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
     success: true,
     csrfToken: req.csrfToken(),
   });
-});
-
-// Request logging middleware
-app.use((req, res, next) => {
-  console.log(`📡 ${req.method} ${req.url}`);
-  if (req.headers.origin) {
-    console.log(`   Origin: ${req.headers.origin}`);
-  }
-  next();
 });
 
 // ============================================
@@ -147,9 +134,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ============================================
-// 404 HANDLER
-// ============================================
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -157,9 +142,7 @@ app.use((req, res) => {
   });
 });
 
-// ============================================
-// ERROR HANDLING MIDDLEWARE
-// ============================================
+// Error handling
 app.use(errorMiddleware);
 
 // ============================================
@@ -175,11 +158,7 @@ connectDB().then(() => {
     console.log('='.repeat(60));
     console.log(`📍 Server running on http://localhost:${PORT}`);
     console.log(`📄 Health check: http://localhost:${PORT}/api/health`);
-    console.log(`🔐 CSRF token: http://localhost:${PORT}/api/csrf-token`);
     console.log(`📁 Upload directory: ${path.join(__dirname, 'uploads')}`);
-    console.log(`🔗 CORS allowed origins:`);
-    allowedOrigins.forEach(origin => console.log(`   - ${origin}`));
-    console.log(`⏱️  Rate limiting: ${limiter.max} requests per ${limiter.windowMs/60000} minutes`);
     console.log('='.repeat(60));
     console.log('');
   });
@@ -188,7 +167,6 @@ connectDB().then(() => {
   process.exit(1);
 });
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('❌ Unhandled Rejection:', err);
   process.exit(1);

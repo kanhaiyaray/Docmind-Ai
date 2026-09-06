@@ -16,7 +16,6 @@ let csrfTokenPromise = null;
 
 const fetchCsrfToken = async () => {
   if (csrfToken) return csrfToken;
-
   if (csrfTokenPromise) return csrfTokenPromise;
 
   csrfTokenPromise = (async () => {
@@ -43,7 +42,10 @@ api.interceptors.request.use(
       config.url.includes('/auth/login') ||
       config.url.includes('/auth/register') ||
       config.url.includes('/auth/refresh') ||
-      config.method === 'get';
+      config.url.includes('/auth/logout') ||
+      config.method === 'get' ||
+      config.method === 'options' ||
+      config.url.includes('/csrf-token');
 
     if (!skipCsrf && config.method !== 'get') {
       try {
@@ -69,53 +71,67 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
+    // Log the full error for debugging
+    console.error('❌ API Error Details:', {
+      status: error.response?.status,
+      url: error.config?.url,
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data
+    });
+
+    // Network errors
     if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-      console.error('❌ Server connection error. Please make sure the backend server is running.');
-      console.error(`   API URL: ${API_URL}`);
-      
+      console.error('❌ Server connection error.');
       return Promise.reject({
         response: {
           status: 503,
           data: {
             success: false,
-            message: 'Cannot connect to server. Please check if the backend is running on port 5000.',
+            message: 'Cannot connect to server. Please check if the backend is running.',
           },
         },
       });
     }
 
-    if (error.response?.status === 401 && error.response?.data?.code === 'TOKEN_EXPIRED') {
-      console.log('🔄 Token expired, attempting to refresh...');
-      
-      try {
-        const refreshResponse = await axios.post(
-          `${API_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-
-        if (refreshResponse.data.success) {
-          console.log('✅ Token refreshed successfully');
-          const originalRequest = error.config;
-          delete originalRequest.headers['X-CSRF-Token'];
-          return api(originalRequest);
-        }
-      } catch (refreshError) {
-        console.error('❌ Token refresh failed:', refreshError);
-        csrfToken = null;
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-      }
-    }
-
+    // Handle 401 errors
     if (error.response?.status === 401) {
-      console.error('❌ Unauthorized - redirecting to login');
+      // If it's a login attempt, don't redirect - just reject with the error
+      if (error.config?.url?.includes('/auth/login')) {
+        console.log('❌ Login failed: Invalid credentials');
+        return Promise.reject(error);
+      }
+      
+      // For other 401 errors, try to refresh token
+      if (error.response?.data?.code === 'TOKEN_EXPIRED') {
+        console.log('🔄 Token expired, attempting to refresh...');
+        try {
+          const refreshResponse = await axios.post(
+            `${API_URL}/auth/refresh`,
+            {},
+            { withCredentials: true }
+          );
+          if (refreshResponse.data.success) {
+            console.log('✅ Token refreshed successfully');
+            const originalRequest = error.config;
+            delete originalRequest.headers['X-CSRF-Token'];
+            return api(originalRequest);
+          }
+        } catch (refreshError) {
+          console.error('❌ Token refresh failed');
+          csrfToken = null;
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return Promise.reject(refreshError);
+        }
+      }
+      
+      // Other 401 errors - clear session
+      console.error('❌ Unauthorized - clearing session');
       csrfToken = null;
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
 
-    console.error('❌ API Error:', error.message);
     return Promise.reject(error);
   }
 );

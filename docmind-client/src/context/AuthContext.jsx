@@ -54,7 +54,15 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setError(null);
-      const response = await api.post('/auth/login', { email, password });
+      console.log('🔐 Attempting login for:', email);
+      
+      const response = await api.post('/auth/login', { 
+        email: email.trim().toLowerCase(), 
+        password 
+      });
+      
+      console.log('✅ Login response:', response.data);
+      
       const { user } = response.data;
       
       localStorage.setItem('user', JSON.stringify(user));
@@ -62,17 +70,40 @@ export const AuthProvider = ({ children }) => {
       
       await refreshCsrfToken();
       
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       return { success: true };
     } catch (error) {
-      setError(error.response?.data?.message || 'Login failed');
-      return { success: false, error: error.response?.data?.message };
+      console.error('❌ Login error:', error);
+      
+      // Extract meaningful error message
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.log('📝 Server response:', error.response.data);
+        errorMessage = error.response.data?.message || 
+                      error.response.data?.error || 
+                      'Invalid email or password';
+      } else if (error.request) {
+        // The request was made but no response was received
+        errorMessage = 'No response from server. Please check your connection.';
+      }
+      
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     }
   };
 
   const register = async (name, email, password) => {
     try {
       setError(null);
-      const response = await api.post('/auth/register', { name, email, password });
+      const response = await api.post('/auth/register', { 
+        name: name.trim(), 
+        email: email.trim().toLowerCase(), 
+        password 
+      });
       const { user } = response.data;
       
       localStorage.setItem('user', JSON.stringify(user));
@@ -82,8 +113,9 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true };
     } catch (error) {
-      setError(error.response?.data?.message || 'Registration failed');
-      return { success: false, error: error.response?.data?.message };
+      let errorMessage = error.response?.data?.message || 'Registration failed';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     }
   };
 
