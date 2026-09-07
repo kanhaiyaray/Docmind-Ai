@@ -16,10 +16,26 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Apply theme when user changes
+  useEffect(() => {
+    if (user?.settings?.theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [user?.settings?.theme]);
+
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      const parsed = JSON.parse(savedUser);
+      setUser(parsed);
+      // Apply theme immediately
+      if (parsed?.settings?.theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
       verifyToken();
     } else {
       setLoading(false);
@@ -31,6 +47,7 @@ export const AuthProvider = ({ children }) => {
       const response = await api.get('/auth/me');
       setUser(response.data.user);
       localStorage.setItem('user', JSON.stringify(response.data.user));
+      // Theme applied via effect
     } catch (error) {
       console.error('Token verification failed:', error);
       localStorage.removeItem('user');
@@ -76,18 +93,14 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('❌ Login error:', error);
       
-      // Extract meaningful error message
       let errorMessage = 'Login failed. Please try again.';
       
       if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
         console.log('📝 Server response:', error.response.data);
         errorMessage = error.response.data?.message || 
                       error.response.data?.error || 
                       'Invalid email or password';
       } else if (error.request) {
-        // The request was made but no response was received
         errorMessage = 'No response from server. Please check your connection.';
       }
       
@@ -128,6 +141,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('user');
       setUser(null);
       clearCsrfToken();
+      document.documentElement.classList.remove('dark');
     }
   };
 
@@ -140,7 +154,14 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('user');
       setUser(null);
       clearCsrfToken();
+      document.documentElement.classList.remove('dark');
     }
+  };
+
+  const updateUser = (updatedUser) => {
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    // Theme will be applied by effect
   };
 
   const value = {
@@ -151,6 +172,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     logoutAll,
+    updateUser,
     isAuthenticated: !!user,
   };
 

@@ -14,6 +14,9 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const documentRoutes = require('./routes/documentRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const compareRoutes = require('./routes/compareRoutes');
+const quizRoutes = require('./routes/quizRoutes');
+const flashcardRoutes = require('./routes/flashcardRoutes');
 const errorMiddleware = require('./middleware/errorMiddleware');
 
 const app = express();
@@ -91,7 +94,6 @@ app.use((req, res, next) => {
   if (req.headers.origin) {
     console.log(`   Origin: ${req.headers.origin}`);
   }
-  // Only log login body in development
   if (process.env.NODE_ENV === 'development' && req.method === 'POST' && req.url.includes('/auth/login')) {
     console.log(`   Body:`, { email: req.body?.email });
   }
@@ -134,6 +136,9 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/compare', compareRoutes);
+app.use('/api/quiz', quizRoutes);
+app.use('/api/flashcards', flashcardRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
