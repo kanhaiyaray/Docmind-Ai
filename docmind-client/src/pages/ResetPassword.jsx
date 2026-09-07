@@ -16,12 +16,32 @@ const ResetPassword = () => {
   const [success, setSuccess] = useState(false);
   const [validToken, setValidToken] = useState(true);
 
+  const [passwordChecks, setPasswordChecks] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    special: false,
+  });
+
   useEffect(() => {
     if (!token) {
       setError('No reset token provided.');
       setValidToken(false);
     }
   }, [token]);
+
+  const handlePasswordChange = (e) => {
+    const value = e.target.value;
+    setPassword(value);
+    setPasswordChecks({
+      length: value.length >= 8,
+      uppercase: /[A-Z]/.test(value),
+      lowercase: /[a-z]/.test(value),
+      number: /[0-9]/.test(value),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(value),
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,8 +50,9 @@ const ResetPassword = () => {
       setError('Missing token');
       return;
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    const allValid = Object.values(passwordChecks).every(v => v === true);
+    if (!allValid) {
+      setError('Please meet all password requirements');
       return;
     }
     if (password !== confirmPassword) {
@@ -42,7 +63,6 @@ const ResetPassword = () => {
     try {
       await api.post('/auth/reset-password', { token, newPassword: password });
       setSuccess(true);
-      // Automatically redirect after 3 seconds
       setTimeout(() => navigate('/login'), 3000);
     } catch (err) {
       setError(err.response?.data?.message || 'Password reset failed. The token may be invalid or expired.');
@@ -100,11 +120,10 @@ const ResetPassword = () => {
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handlePasswordChange}
                 className="input-custom pl-10 pr-10"
                 placeholder="••••••••"
                 required
-                minLength="8"
               />
               <button
                 type="button"
@@ -113,6 +132,23 @@ const ResetPassword = () => {
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
+            </div>
+            <div className="mt-2 text-xs space-y-1">
+              <p className={passwordChecks.length ? 'text-green-500' : 'text-gray-400'}>
+                {passwordChecks.length ? '✅' : '⬜'} At least 8 characters
+              </p>
+              <p className={passwordChecks.uppercase ? 'text-green-500' : 'text-gray-400'}>
+                {passwordChecks.uppercase ? '✅' : '⬜'} One uppercase letter
+              </p>
+              <p className={passwordChecks.lowercase ? 'text-green-500' : 'text-gray-400'}>
+                {passwordChecks.lowercase ? '✅' : '⬜'} One lowercase letter
+              </p>
+              <p className={passwordChecks.number ? 'text-green-500' : 'text-gray-400'}>
+                {passwordChecks.number ? '✅' : '⬜'} One number
+              </p>
+              <p className={passwordChecks.special ? 'text-green-500' : 'text-gray-400'}>
+                {passwordChecks.special ? '✅' : '⬜'} One special character (!@#$%^&*...)
+              </p>
             </div>
           </div>
 

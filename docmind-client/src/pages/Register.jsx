@@ -18,30 +18,50 @@ const Register = () => {
   const { register, error } = useAuth();
   const navigate = useNavigate();
 
+  const [passwordChecks, setPasswordChecks] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    special: false,
+  });
+
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    if (e.target.name === 'confirmPassword') {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (name === 'password') {
+      setPasswordChecks({
+        length: value.length >= 8,
+        uppercase: /[A-Z]/.test(value),
+        lowercase: /[a-z]/.test(value),
+        number: /[0-9]/.test(value),
+        special: /[!@#$%^&*(),.?":{}|<>]/.test(value),
+      });
+    }
+    if (name === 'confirmPassword') {
       setPasswordError('');
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       setPasswordError('Passwords do not match');
       return;
     }
 
-    if (formData.password.length < 8) {
-      setPasswordError('Password must be at least 8 characters');
+    // Check if all password requirements are met
+    const allValid = Object.values(passwordChecks).every(v => v === true);
+    if (!allValid) {
+      setPasswordError('Please meet all password requirements');
       return;
     }
 
     setLoading(true);
     const result = await register(formData.name, formData.email, formData.password);
     setLoading(false);
-    
+
     if (result.success) {
       navigate('/');
     }
@@ -51,20 +71,17 @@ const Register = () => {
     <div className="min-h-screen bg-[#0d1117] flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
         <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-8 shadow-lg">
-          {/* Logo */}
           <div className="flex justify-center mb-8">
             <div className="bg-purple-600 rounded-xl p-3">
               <UserPlus className="h-8 w-8 text-white" />
             </div>
           </div>
 
-          {/* Header */}
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-white mb-1">Create Account</h2>
             <p className="text-gray-400 text-sm">Start using DocMind today</p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {(error || passwordError) && (
               <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm text-center">
@@ -143,7 +160,23 @@ const Register = () => {
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
-              <p className="mt-1 text-xs text-gray-500">Must be at least 8 characters</p>
+              <div className="mt-2 text-xs space-y-1">
+                <p className={passwordChecks.length ? 'text-green-500' : 'text-gray-400'}>
+                  {passwordChecks.length ? '✅' : '⬜'} At least 8 characters
+                </p>
+                <p className={passwordChecks.uppercase ? 'text-green-500' : 'text-gray-400'}>
+                  {passwordChecks.uppercase ? '✅' : '⬜'} One uppercase letter
+                </p>
+                <p className={passwordChecks.lowercase ? 'text-green-500' : 'text-gray-400'}>
+                  {passwordChecks.lowercase ? '✅' : '⬜'} One lowercase letter
+                </p>
+                <p className={passwordChecks.number ? 'text-green-500' : 'text-gray-400'}>
+                  {passwordChecks.number ? '✅' : '⬜'} One number
+                </p>
+                <p className={passwordChecks.special ? 'text-green-500' : 'text-gray-400'}>
+                  {passwordChecks.special ? '✅' : '⬜'} One special character (!@#$%^&*...)
+                </p>
+              </div>
             </div>
 
             {/* Confirm Password Field */}
@@ -184,7 +217,6 @@ const Register = () => {
               {loading ? 'Creating account...' : 'Create Account'}
             </button>
 
-            {/* Sign In Link */}
             <p className="text-center text-sm text-gray-400">
               Already have an account?{' '}
               <Link to="/login" className="text-purple-400 hover:text-purple-300 font-medium transition-colors">
@@ -193,7 +225,6 @@ const Register = () => {
             </p>
           </form>
 
-          {/* Footer */}
           <div className="mt-6 pt-5 border-t border-[#30363d] text-center">
             <p className="text-xs text-gray-500">
               By creating an account, you agree to our{' '}

@@ -63,7 +63,7 @@ app.use(cors({
 app.options('*', cors());
 
 // ============================================
-// RATE LIMITING
+// RATE LIMITING – skip auth routes (they have their own)
 // ============================================
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW) * 60 * 1000 || 15 * 60 * 1000,
@@ -74,7 +74,13 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/api/health',
+  skip: (req) => {
+    // Skip rate limiting for auth routes (they have their own limiters)
+    if (req.path.startsWith('/api/auth/')) return true;
+    // Also skip health check
+    if (req.path === '/api/health') return true;
+    return false;
+  },
   keyGenerator: (req) => req.userId || req.ip,
 });
 
