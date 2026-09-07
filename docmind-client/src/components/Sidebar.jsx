@@ -43,13 +43,13 @@ const Sidebar = () => {
         <SidebarItem to="/chat" icon={<MessageSquare className="h-4 w-4" />} label="AI Chat" active={isActive('/chat')} />
 
         <div className="sidebar-section-title">AI Tools</div>
-        <SidebarItem to="#" icon={<BarChart3 className="h-4 w-4" />} label="Compare" />
-        <SidebarItem to="#" icon={<Zap className="h-4 w-4" />} label="Quiz Generator" />
-        <SidebarItem to="#" icon={<BookOpen className="h-4 w-4" />} label="Flashcards" />
+        <SidebarItem to="/compare" icon={<BarChart3 className="h-4 w-4" />} label="Compare" active={isActive('/compare')} />
+        <SidebarItem to="/quiz" icon={<Zap className="h-4 w-4" />} label="Quiz Generator" active={isActive('/quiz')} />
+        <SidebarItem to="/flashcards" icon={<BookOpen className="h-4 w-4" />} label="Flashcards" active={isActive('/flashcards')} />
 
         <div className="sidebar-section-title">Workspace</div>
-        <SidebarItem to="#" icon={<History className="h-4 w-4" />} label="History" />
-        <SidebarItem to="#" icon={<Settings className="h-4 w-4" />} label="Settings" />
+        <SidebarItem to="/history" icon={<History className="h-4 w-4" />} label="History" active={isActive('/history')} />
+        <SidebarItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" active={isActive('/settings')} />
       </div>
 
       {/* User Profile */}

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   FileText, MessageSquare, LogOut, Home, 
   Sparkles, Menu, X, Bell, LayoutDashboard,
-  FolderOpen, MessageCircle, Zap, Upload
+  FolderOpen, MessageCircle, Zap, Upload, BarChart3, BookOpen
 } from 'lucide-react';
 
 const Navbar = () => {
@@ -18,7 +18,7 @@ const Navbar = () => {
     navigate('/login');
   };
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
 
   if (!isAuthenticated) {
     return (
@@ -56,10 +56,10 @@ const Navbar = () => {
             <div className="hidden md:flex items-center space-x-1">
               <NavTab to="/" icon={<LayoutDashboard className="h-4 w-4" />} label="Home" active={isActive('/')} />
               <NavTab to="/documents" icon={<FolderOpen className="h-4 w-4" />} label="Documents" active={isActive('/documents')} />
-              <NavTab to="/chat" icon={<MessageCircle className="h-4 w-4" />} label="AI Chat" active={isActive('/chat') || location.pathname.startsWith('/chat/')} />
-              <NavTab to="#" icon={<FileText className="h-4 w-4" />} label="Compare" />
-              <NavTab to="#" icon={<Zap className="h-4 w-4" />} label="Quiz" />
-              <NavTab to="#" icon={<Sparkles className="h-4 w-4" />} label="Flashcards" />
+              <NavTab to="/chat" icon={<MessageCircle className="h-4 w-4" />} label="AI Chat" active={isActive('/chat')} />
+              <NavTab to="/compare" icon={<BarChart3 className="h-4 w-4" />} label="Compare" active={isActive('/compare')} />
+              <NavTab to="/quiz" icon={<Zap className="h-4 w-4" />} label="Quiz" active={isActive('/quiz')} />
+              <NavTab to="/flashcards" icon={<Sparkles className="h-4 w-4" />} label="Flashcards" active={isActive('/flashcards')} />
             </div>
 
             {/* Right Section */}
@@ -103,9 +103,9 @@ const Navbar = () => {
               <MobileTab to="/" icon={<LayoutDashboard className="h-5 w-5" />} label="Home" />
               <MobileTab to="/documents" icon={<FolderOpen className="h-5 w-5" />} label="Documents" />
               <MobileTab to="/chat" icon={<MessageCircle className="h-5 w-5" />} label="AI Chat" />
-              <MobileTab to="#" icon={<FileText className="h-5 w-5" />} label="Compare" />
-              <MobileTab to="#" icon={<Zap className="h-5 w-5" />} label="Quiz Generator" />
-              <MobileTab to="#" icon={<Sparkles className="h-5 w-5" />} label="Flashcards" />
+              <MobileTab to="/compare" icon={<BarChart3 className="h-5 w-5" />} label="Compare" />
+              <MobileTab to="/quiz" icon={<Zap className="h-5 w-5" />} label="Quiz Generator" />
+              <MobileTab to="/flashcards" icon={<Sparkles className="h-5 w-5" />} label="Flashcards" />
               <div className="pt-2 border-t border-gray-100">
                 <button onClick={handleLogout} className="w-full flex items-center space-x-3 px-3 py-2 text-red-500 hover:bg-red-50 rounded-xl transition-all">
                   <LogOut className="h-5 w-5" />

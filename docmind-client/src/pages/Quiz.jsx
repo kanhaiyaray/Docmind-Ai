@@ -1,0 +1,22 @@
+﻿import React from 'react';
+import { Zap } from 'lucide-react';
+
+const Quiz = () => {
+  return (
+    <div className="max-w-4xl mx-auto py-8">
+      <div className="flex items-center gap-3 mb-6">
+        <Zap className="h-8 w-8 text-yellow-500" />
+        <h1 className="text-2xl font-bold text-gray-900">Quiz Generator</h1>
+      </div>
+      <div className="glass-card p-8 text-center">
+        <p className="text-gray-500 text-lg">Generate quizzes from your documents.</p>
+        <p className="text-gray-400 mt-2">This feature is coming soon.</p>
+        <div className="mt-6 p-4 bg-gray-50 rounded-lg inline-block">
+          <span className="text-sm text-gray-500">🧠 AI‑powered questions from your PDF content</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Quiz;

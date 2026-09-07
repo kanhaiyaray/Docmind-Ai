@@ -10,6 +10,11 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Documents from './pages/Documents';
 import Chat from './pages/Chat';
+import Compare from './pages/Compare';
+import Quiz from './pages/Quiz';
+import Flashcards from './pages/Flashcards';
+import Settings from './pages/Settings';
+import History from './pages/History';
 
 function AppContent() {
   const { loading } = useAuth();
@@ -42,6 +47,11 @@ function AppContent() {
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/documents" element={<Documents />} />
                     <Route path="/chat/:documentId?" element={<Chat />} />
+                    <Route path="/compare" element={<Compare />} />
+                    <Route path="/quiz" element={<Quiz />} />
+                    <Route path="/flashcards" element={<Flashcards />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/history" element={<History />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </div>

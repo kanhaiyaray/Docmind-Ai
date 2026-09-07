@@ -58,19 +58,19 @@ const Dashboard = () => {
           icon={<BarChart3 className="h-5 w-5 icon-pink" />} 
           label="Compare" 
           color="#fd79a8" 
-          onClick={() => navigate('/documents')} // placeholder
+          onClick={() => navigate('/compare')}
         />
         <QuickAction 
           icon={<Zap className="h-5 w-5 icon-orange" />} 
           label="Quiz Generator" 
           color="#fdcb6e" 
-          onClick={() => navigate('/documents')} // placeholder
+          onClick={() => navigate('/quiz')}
         />
         <QuickAction 
           icon={<Sparkles className="h-5 w-5 icon-green" />} 
           label="Flashcards" 
           color="#00b894" 
-          onClick={() => navigate('/documents')} // placeholder
+          onClick={() => navigate('/flashcards')}
         />
       </div>
 

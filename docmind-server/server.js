@@ -6,6 +6,7 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 const csrf = require('csurf');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 
 dotenv.config();
 
@@ -18,9 +19,14 @@ const errorMiddleware = require('./middleware/errorMiddleware');
 const app = express();
 
 // ============================================
-// CORS CONFIGURATION
+// HELMET - Secure HTTP headers
 // ============================================
-const allowedOrigins = [
+app.use(helmet());
+
+// ============================================
+// CORS CONFIGURATION (from env or fallback)
+// ============================================
+const defaultOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
@@ -29,6 +35,10 @@ const allowedOrigins = [
   'http://127.0.0.1:5175',
   'http://localhost:3000',
 ];
+const envOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+  : [];
+const allowedOrigins = [...defaultOrigins, ...envOrigins];
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -75,13 +85,14 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Log all requests
+// Log requests (sensitive info only in development)
 app.use((req, res, next) => {
   console.log(`📡 ${req.method} ${req.url}`);
   if (req.headers.origin) {
     console.log(`   Origin: ${req.headers.origin}`);
   }
-  if (req.method === 'POST' && req.url.includes('/auth/login')) {
+  // Only log login body in development
+  if (process.env.NODE_ENV === 'development' && req.method === 'POST' && req.url.includes('/auth/login')) {
     console.log(`   Body:`, { email: req.body?.email });
   }
   next();
