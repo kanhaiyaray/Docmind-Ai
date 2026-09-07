@@ -48,10 +48,30 @@ const Dashboard = () => {
     <div>
       {/* Quick Actions */}
       <div className="quick-actions">
-        <QuickAction icon={<MessageSquare className="h-5 w-5 icon-purple" />} label="AI Chat" color="#6c5ce7" />
-        <QuickAction icon={<BarChart3 className="h-5 w-5 icon-pink" />} label="Compare" color="#fd79a8" />
-        <QuickAction icon={<Zap className="h-5 w-5 icon-orange" />} label="Quiz Generator" color="#fdcb6e" />
-        <QuickAction icon={<Sparkles className="h-5 w-5 icon-green" />} label="Flashcards" color="#00b894" />
+        <QuickAction 
+          icon={<MessageSquare className="h-5 w-5 icon-purple" />} 
+          label="AI Chat" 
+          color="#6c5ce7" 
+          onClick={() => navigate('/chat')}
+        />
+        <QuickAction 
+          icon={<BarChart3 className="h-5 w-5 icon-pink" />} 
+          label="Compare" 
+          color="#fd79a8" 
+          onClick={() => navigate('/documents')} // placeholder
+        />
+        <QuickAction 
+          icon={<Zap className="h-5 w-5 icon-orange" />} 
+          label="Quiz Generator" 
+          color="#fdcb6e" 
+          onClick={() => navigate('/documents')} // placeholder
+        />
+        <QuickAction 
+          icon={<Sparkles className="h-5 w-5 icon-green" />} 
+          label="Flashcards" 
+          color="#00b894" 
+          onClick={() => navigate('/documents')} // placeholder
+        />
       </div>
 
       {/* Content Grid */}
@@ -127,8 +147,8 @@ const Dashboard = () => {
 };
 
 // Quick Action Component
-const QuickAction = ({ icon, label, color }) => (
-  <button className="quick-action-btn">
+const QuickAction = ({ icon, label, color, onClick }) => (
+  <button className="quick-action-btn" onClick={onClick}>
     {icon}
     <span>{label}</span>
   </button>

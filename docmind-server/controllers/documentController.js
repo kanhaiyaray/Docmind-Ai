@@ -82,16 +82,17 @@ const processDocument = async (documentId, filePath, userId) => {
 
     // Chunk the text
     console.log(`🧩 Chunking document...`);
-    const chunks = await chunkService.chunkDocument(
+    const totalChunks = await chunkService.chunkDocument(
       documentId,
       userId,
       extraction.pages
     );
-    console.log(`✅ Created ${chunks.length} chunks`);
+    console.log(`✅ Created ${totalChunks} chunks`);
 
-    // Generate embeddings for chunks
-    console.log(`🧠 Generating embeddings...`);
-    await embeddingService.generateAndStoreEmbeddings(chunks);
+    // Fetch all chunks to generate embeddings
+    const allChunks = await Chunk.find({ documentId }).sort({ chunkIndex: 1 });
+    console.log(`🧠 Generating embeddings for ${allChunks.length} chunks...`);
+    await embeddingService.generateAndStoreEmbeddings(allChunks);
     console.log(`✅ Embeddings generated`);
 
     // Update document status
@@ -124,21 +125,14 @@ const getDocuments = async (req, res) => {
     
     const query = { userId: req.userId };
     if (status) query.status = status;
+    if (search) query.$text = { $search: search };
     
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    let documentsQuery = Document.find(query)
-      .sort({ createdAt: -1 })
+    const documentsQuery = Document.find(query)
+      .sort(search ? { score: { $meta: 'textScore' } } : { createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
-
-    // Text search
-    if (search) {
-      documentsQuery = Document.find({
-        ...query,
-        $text: { $search: search },
-      }).sort({ score: { $meta: 'textScore' } });
-    }
 
     const documents = await documentsQuery;
     const total = await Document.countDocuments(query);
