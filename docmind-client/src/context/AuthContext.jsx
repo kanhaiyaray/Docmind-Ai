@@ -16,26 +16,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Apply theme when user changes
-  useEffect(() => {
-    if (user?.settings?.theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [user?.settings?.theme]);
-
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       const parsed = JSON.parse(savedUser);
       setUser(parsed);
-      // Apply theme immediately
-      if (parsed?.settings?.theme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
       verifyToken();
     } else {
       setLoading(false);
@@ -47,7 +32,6 @@ export const AuthProvider = ({ children }) => {
       const response = await api.get('/auth/me');
       setUser(response.data.user);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      // Theme applied via effect
     } catch (error) {
       console.error('Token verification failed:', error);
       localStorage.removeItem('user');
@@ -141,7 +125,6 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('user');
       setUser(null);
       clearCsrfToken();
-      document.documentElement.classList.remove('dark');
     }
   };
 
@@ -154,14 +137,12 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('user');
       setUser(null);
       clearCsrfToken();
-      document.documentElement.classList.remove('dark');
     }
   };
 
   const updateUser = (updatedUser) => {
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
-    // Theme will be applied by effect
   };
 
   const value = {

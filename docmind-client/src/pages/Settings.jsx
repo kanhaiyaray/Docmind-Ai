@@ -1,17 +1,15 @@
 ﻿import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
 import api from "../services/api";
-import { Settings as SettingsIcon, User, Mail, Moon, Sun, Bell, Loader } from "lucide-react";
+import { Settings as SettingsIcon, User, Mail, Bell, Loader } from "lucide-react";
 import toast from "react-hot-toast";
 
 const Settings = () => {
   const { user, updateUser } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const [name, setName] = useState(user?.name || "");
   const [email] = useState(user?.email || "");
   const [notifications, setNotifications] = useState(
-    user?.settings?.notifications !== false
+    user?.settings?. notifications !== false
   );
   const [loading, setLoading] = useState(false);
   const [passwordData, setPasswordData] = useState({
@@ -95,20 +93,6 @@ const Settings = () => {
               <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
             </div>
             <div className="flex gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Theme</label>
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  className={`p-2 rounded-lg border ${
-                    theme === 'light' 
-                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900' 
-                      : 'border-gray-300 dark:border-gray-600'
-                  }`}
-                >
-                  {theme === 'light' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-                </button>
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notifications</label>
                 <button
