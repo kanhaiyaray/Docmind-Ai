@@ -21,7 +21,8 @@
         "jsonwebtoken": "^9.0.0",
         "mongoose": "^6.8.0",
         "multer": "^2.3.0",
-        "pdf-parse": "^2.4.5"
+        "pdf-parse": "^2.4.5",
+        "resend": "^6.26.0"
     },
     "devDependencies": {
         "nodemon": "^2.0.20"

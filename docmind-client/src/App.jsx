@@ -16,6 +16,9 @@ import Quiz from './pages/Quiz';
 import Flashcards from './pages/Flashcards';
 import Settings from './pages/Settings';
 import History from './pages/History';
+import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 function AppContent() {
   const { loading } = useAuth();
@@ -35,8 +38,14 @@ function AppContent() {
     <>
       <Toaster position="top-right" toastOptions={{ duration: 4000, style: { background: '#fff', color: '#1a1a2e' } }} />
       <Routes>
+        {/* Public Routes (no auth required) */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+
+        {/* Protected Routes */}
         <Route path="/*" element={
           <PrivateRoute>
             <div className="app-container">

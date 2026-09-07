@@ -2,6 +2,8 @@
 const RefreshToken = require('../models/RefreshToken');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
+const crypto = require('crypto');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
 
 const generateToken = (userId) => {
   return jwt.sign(
@@ -50,6 +52,9 @@ const clearAuthCookies = (res) => {
   res.clearCookie('_csrf', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
 };
 
+// ================================
+// REGISTER (with verification email)
+// ================================
 const register = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -76,10 +81,23 @@ const register = async (req, res) => {
       name,
       email: email.toLowerCase(),
       password,
-      isEmailVerified: true,
+      isEmailVerified: false, // changed to false
     });
 
     await user.save();
+
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+    await user.save();
+
+    // Send verification email (fire and forget, but log errors)
+    try {
+      await sendVerificationEmail(user.email, user.name, verificationToken);
+    } catch (emailError) {
+      console.error('Verification email failed:', emailError);
+    }
 
     const token = generateToken(user._id);
     const refreshToken = await generateRefreshToken(user._id);
@@ -89,7 +107,7 @@ const register = async (req, res) => {
     res.status(201).json({
       success: true,
       user: user.getPublicProfile(),
-      message: 'Registration successful',
+      message: 'Registration successful. Please verify your email.',
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -100,6 +118,9 @@ const register = async (req, res) => {
   }
 };
 
+// ================================
+// LOGIN
+// ================================
 const login = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -138,7 +159,7 @@ const login = async (req, res) => {
       console.log(`❌ Email not verified: ${email}`);
       return res.status(401).json({
         success: false,
-        message: 'Please verify your email before logging in',
+        message: 'Please verify your email before logging in. Check your inbox for the verification link.',
       });
     }
 
@@ -174,6 +195,149 @@ const login = async (req, res) => {
   }
 };
 
+// ================================
+// EMAIL VERIFICATION
+// ================================
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Verification token is required',
+      });
+    }
+
+    const user = await User.findOne({
+      emailVerificationToken: token,
+      emailVerificationExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification token',
+      });
+    }
+
+    user.isEmailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Email verified successfully. You can now log in.',
+    });
+  } catch (error) {
+    console.error('Verify email error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during email verification',
+    });
+  }
+};
+
+// ================================
+// FORGOT PASSWORD
+// ================================
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required',
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      // Security: don't reveal if email exists
+      return res.json({
+        success: true,
+        message: 'If an account with that email exists, a reset link has been sent.',
+      });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+    await user.save();
+
+    try {
+      await sendPasswordResetEmail(user.email, user.name, resetToken);
+    } catch (emailError) {
+      console.error('Reset email failed:', emailError);
+    }
+
+    res.json({
+      success: true,
+      message: 'If an account with that email exists, a reset link has been sent.',
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+};
+
+// ================================
+// RESET PASSWORD
+// ================================
+const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token and new password are required',
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters',
+      });
+    }
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
+    }).select('+password');
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token',
+      });
+    }
+
+    user.password = newPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    user.failedLoginAttempts = 0; // reset lockouts
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully. You can now log in with your new password.',
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during password reset',
+    });
+  }
+};
+
+// ================================
+// REFRESH TOKEN
+// ================================
 const refreshToken = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
@@ -249,6 +413,9 @@ const refreshToken = async (req, res) => {
   }
 };
 
+// ================================
+// LOGOUT & LOGOUT ALL
+// ================================
 const logout = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
@@ -297,6 +464,9 @@ const logoutAll = async (req, res) => {
   }
 };
 
+// ================================
+// GET ME, UPDATE PROFILE, CHANGE PASSWORD
+// ================================
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.userId);
@@ -389,6 +559,9 @@ const changePassword = async (req, res) => {
 module.exports = {
   register,
   login,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
   refreshToken,
   logout,
   logoutAll,

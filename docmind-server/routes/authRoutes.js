@@ -4,6 +4,9 @@ const { body } = require('express-validator');
 const {
   register,
   login,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
   refreshToken,
   logout,
   logoutAll,
@@ -45,10 +48,15 @@ const loginValidation = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
+// Public routes
 router.post('/register', registerValidation, register);
 router.post('/login', loginValidation, login);
+router.get('/verify-email', verifyEmail);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 router.post('/refresh', refreshToken);
 
+// Protected routes
 router.post('/logout', protect, logout);
 router.post('/logout-all', protect, logoutAll);
 router.get('/me', protect, getMe);
