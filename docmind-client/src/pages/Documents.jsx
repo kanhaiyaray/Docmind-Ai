@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import DocumentUpload from '../components/DocumentUpload';
 import Loading from '../components/Loading';
@@ -70,8 +70,18 @@ const Documents = () => {
   const observerRef = useRef(null);
   const lastDocRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { handleError, handleSuccess } = useErrorHandler();
   const debouncedSearch = useDebounce(searchTerm, 400);
+
+  // Read search query from URL on mount and when URL changes
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const query = params.get('search');
+    if (query) {
+      setSearchTerm(query);
+    }
+  }, [location.search]);
 
   // Fetch documents with pagination and search
   const fetchDocuments = useCallback(async (reset = false) => {
