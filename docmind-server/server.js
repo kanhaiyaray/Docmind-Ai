@@ -19,11 +19,12 @@ const quizRoutes = require('./routes/quizRoutes');
 const flashcardRoutes = require('./routes/flashcardRoutes');
 const errorMiddleware = require('./middleware/errorMiddleware');
 
+// --- ADMIN MODULE ---
+const adminRoutes = require('./admin');
+
 const app = express();
 
-// ============================================
 // HELMET - Secure HTTP headers
-// ============================================
 app.use(helmet());
 
 // ============================================
@@ -75,13 +76,11 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
-    // Skip rate limiting for auth routes (they have their own limiters)
     if (req.path.startsWith('/api/auth/')) return true;
-    // Also skip health check
     if (req.path === '/api/health') return true;
     return false;
   },
-  keyGenerator: (req) => req.userId || req.ip,
+  
 });
 
 app.use('/api', limiter);
@@ -94,7 +93,6 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Log requests (sensitive info only in development)
 app.use((req, res, next) => {
   console.log(`📡 ${req.method} ${req.url}`);
   if (req.headers.origin) {
@@ -117,7 +115,6 @@ const csrfProtection = csrf({
   },
 });
 
-// Skip CSRF for auth routes
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/auth/') && 
       (req.path.includes('/login') || 
@@ -128,7 +125,6 @@ app.use((req, res, next) => {
   csrfProtection(req, res, next);
 });
 
-// CSRF token endpoint
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.json({
     success: true,
@@ -136,15 +132,16 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
   });
 });
 
-// ============================================
 // ROUTES
-// ============================================
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/compare', compareRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/flashcards', flashcardRoutes);
+
+// --- ADMIN ROUTES ---
+app.use('/api/admin', adminRoutes.router);
 
 // Health check
 app.get('/api/health', (req, res) => {

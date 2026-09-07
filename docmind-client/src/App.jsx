@@ -1,6 +1,7 @@
 ﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
+import AdminRoute from './components/AdminRoute';                 
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import { Toaster } from 'react-hot-toast';
@@ -18,6 +19,14 @@ import History from './pages/History';
 import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+
+// Admin imports
+import AdminLayout from './pages/Admin/AdminLayout';
+import AdminDashboard from './pages/Admin/Dashboard';
+import AdminUsers from './pages/Admin/Users';
+import AdminDocuments from './pages/Admin/Documents';
+import AdminLogs from './pages/Admin/Logs';
+import AdminSettings from './pages/Admin/Settings';
 
 function AppContent() {
   const { loading } = useAuth();
@@ -61,6 +70,16 @@ function AppContent() {
                     <Route path="/flashcards" element={<Flashcards />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/history" element={<History />} />
+
+                    {/* ============ ADMIN ROUTES ============ */}
+                    <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>} />
+                    <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+                    <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+                    <Route path="/admin/documents" element={<AdminRoute><AdminDocuments /></AdminRoute>} />
+                    <Route path="/admin/logs" element={<AdminRoute><AdminLogs /></AdminRoute>} />
+                    <Route path="/admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
+                    <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
+
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </div>
