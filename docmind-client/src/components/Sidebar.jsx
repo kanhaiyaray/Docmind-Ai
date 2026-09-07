@@ -50,6 +50,14 @@ const Sidebar = () => {
         <div className="sidebar-section-title">Workspace</div>
         <SidebarItem to="/history" icon={<History className="h-4 w-4" />} label="History" active={isActive('/history')} />
         <SidebarItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" active={isActive('/settings')} />
+
+        {/* ---------- Admin Section (visible only to admin users) ---------- */}
+        {user?.role === 'admin' && (
+          <>
+            <div className="sidebar-section-title">Admin</div>
+            <SidebarItem to="/admin" icon={<LayoutDashboard className="h-4 w-4" />} label="Admin Dashboard" active={isActive('/admin')} />
+          </>
+        )}
       </div>
 
       {/* User Profile */}
