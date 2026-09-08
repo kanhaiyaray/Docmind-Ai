@@ -13,7 +13,8 @@ const generateToken = (userId) => {
   );
 };
 
-const generateRefreshToken = async (userId) => {
+// UPDATED: accepts deviceInfo for session tracking
+const generateRefreshToken = async (userId, deviceInfo = {}) => {
   const refreshToken = jwt.sign(
     { userId },
     process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + '_refresh',
@@ -24,6 +25,10 @@ const generateRefreshToken = async (userId) => {
     userId,
     token: refreshToken,
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    deviceInfo: {
+      userAgent: deviceInfo.userAgent || '',
+      ipAddress: deviceInfo.ipAddress || '',
+    },
   });
 
   return refreshToken;
@@ -53,7 +58,7 @@ const clearAuthCookies = (res) => {
 };
 
 // ================================
-// REGISTER (with verification email)
+// REGISTER
 // ================================
 const register = async (req, res) => {
   try {
@@ -81,18 +86,16 @@ const register = async (req, res) => {
       name,
       email: email.toLowerCase(),
       password,
-      isEmailVerified: false, // changed to false
+      isEmailVerified: false,
     });
 
     await user.save();
 
-    // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
     user.emailVerificationToken = verificationToken;
-    user.emailVerificationExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+    user.emailVerificationExpires = Date.now() + 60 * 60 * 1000;
     await user.save();
 
-    // Send verification email (fire and forget, but log errors)
     try {
       await sendVerificationEmail(user.email, user.name, verificationToken);
     } catch (emailError) {
@@ -100,7 +103,10 @@ const register = async (req, res) => {
     }
 
     const token = generateToken(user._id);
-    const refreshToken = await generateRefreshToken(user._id);
+    const refreshToken = await generateRefreshToken(user._id, {
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip || req.connection.remoteAddress,
+    });
 
     setAuthCookies(res, token, refreshToken);
 
@@ -176,7 +182,10 @@ const login = async (req, res) => {
     await user.save();
 
     const token = generateToken(user._id);
-    const refreshToken = await generateRefreshToken(user._id);
+    const refreshToken = await generateRefreshToken(user._id, {
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip || req.connection.remoteAddress,
+    });
 
     setAuthCookies(res, token, refreshToken);
 
@@ -253,7 +262,6 @@ const forgotPassword = async (req, res) => {
 
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
-      // Security: don't reveal if email exists
       return res.json({
         success: true,
         message: 'If an account with that email exists, a reset link has been sent.',
@@ -262,7 +270,7 @@ const forgotPassword = async (req, res) => {
 
     const resetToken = crypto.randomBytes(32).toString('hex');
     user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000;
     await user.save();
 
     try {
@@ -319,7 +327,7 @@ const resetPassword = async (req, res) => {
     user.password = newPassword;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
-    user.failedLoginAttempts = 0; // reset lockouts
+    user.failedLoginAttempts = 0;
     await user.save();
 
     res.json({
@@ -336,23 +344,24 @@ const resetPassword = async (req, res) => {
 };
 
 // ================================
-// REFRESH TOKEN
+// REFRESH TOKEN (UPDATED WITH ROTATION)
 // ================================
 const refreshToken = async (req, res) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
+    const oldRefreshToken = req.cookies.refreshToken;
 
-    if (!refreshToken) {
+    if (!oldRefreshToken) {
       return res.status(401).json({
         success: false,
         message: 'No refresh token provided',
       });
     }
 
+    // Verify old refresh token
     let decoded;
     try {
       decoded = jwt.verify(
-        refreshToken,
+        oldRefreshToken,
         process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + '_refresh'
       );
     } catch (error) {
@@ -362,8 +371,9 @@ const refreshToken = async (req, res) => {
       });
     }
 
+    // Check if token exists and is not revoked
     const storedToken = await RefreshToken.findOne({
-      token: refreshToken,
+      token: oldRefreshToken,
       userId: decoded.userId,
       isRevoked: false,
     });
@@ -371,7 +381,7 @@ const refreshToken = async (req, res) => {
     if (!storedToken) {
       return res.status(401).json({
         success: false,
-        message: 'Refresh token not found',
+        message: 'Refresh token not found or revoked',
       });
     }
 
@@ -383,6 +393,7 @@ const refreshToken = async (req, res) => {
       });
     }
 
+    // Get user
     const user = await User.findById(decoded.userId);
     if (!user || !user.isActive) {
       return res.status(401).json({
@@ -391,14 +402,20 @@ const refreshToken = async (req, res) => {
       });
     }
 
-    const newToken = generateToken(user._id);
+    // --- ROTATION: Revoke old token ---
+    await RefreshToken.findByIdAndUpdate(storedToken._id, { isRevoked: true });
 
-    res.cookie('token', newToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 15 * 60 * 1000,
+    // --- Generate NEW refresh token ---
+    const newRefreshToken = await generateRefreshToken(user._id, {
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip || req.connection.remoteAddress,
     });
+
+    // --- Generate new access token ---
+    const newAccessToken = generateToken(user._id);
+
+    // Set cookies with new tokens
+    setAuthCookies(res, newAccessToken, newRefreshToken);
 
     res.json({
       success: true,
@@ -556,6 +573,123 @@ const changePassword = async (req, res) => {
   }
 };
 
+// ================================
+// NEW: DEVICE MANAGEMENT (SESSIONS)
+// ================================
+
+// @desc    Get all active sessions for the current user
+// @route   GET /api/auth/sessions
+// @access  Private
+const getSessions = async (req, res) => {
+  try {
+    const sessions = await RefreshToken.find({
+      userId: req.userId,
+      isRevoked: false,
+      expiresAt: { $gt: new Date() },
+    }).select('_id deviceInfo createdAt expiresAt');
+
+    const currentRefreshToken = req.cookies.refreshToken;
+
+    const formattedSessions = sessions.map(s => ({
+      id: s._id,
+      deviceInfo: s.deviceInfo,
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+      isCurrent: s.token === currentRefreshToken,
+    }));
+
+    res.json({
+      success: true,
+      sessions: formattedSessions,
+    });
+  } catch (error) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch sessions',
+    });
+  }
+};
+
+// @desc    Revoke a specific session (logout from that device)
+// @route   DELETE /api/auth/sessions/:id
+// @access  Private
+const revokeSession = async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+    const session = await RefreshToken.findOne({
+      _id: sessionId,
+      userId: req.userId,
+      isRevoked: false,
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Session not found or already revoked',
+      });
+    }
+
+    // Prevent revoking current session (user would logout)
+    if (session.token === req.cookies.refreshToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot revoke current session. Use logout instead.',
+      });
+    }
+
+    session.isRevoked = true;
+    await session.save();
+
+    res.json({
+      success: true,
+      message: 'Session revoked successfully',
+    });
+  } catch (error) {
+    console.error('Revoke session error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to revoke session',
+    });
+  }
+};
+
+// @desc    Revoke all sessions except current
+// @route   POST /api/auth/sessions/revoke-others
+// @access  Private
+const revokeOthers = async (req, res) => {
+  try {
+    const currentRefreshToken = req.cookies.refreshToken;
+
+    if (!currentRefreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'No active session',
+      });
+    }
+
+    await RefreshToken.updateMany(
+      {
+        userId: req.userId,
+        token: { $ne: currentRefreshToken },
+        isRevoked: false,
+      },
+      { isRevoked: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'All other sessions revoked',
+    });
+  } catch (error) {
+    console.error('Revoke others error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to revoke other sessions',
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -568,4 +702,7 @@ module.exports = {
   getMe,
   updateProfile,
   changePassword,
+  getSessions,
+  revokeSession,
+  revokeOthers,
 };

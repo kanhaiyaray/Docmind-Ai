@@ -19,6 +19,7 @@ import History from './pages/History';
 import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import Sessions from './pages/Sessions';  
 
 // Admin imports
 import AdminLayout from './pages/Admin/AdminLayout';
@@ -70,6 +71,7 @@ function AppContent() {
                     <Route path="/flashcards" element={<Flashcards />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/history" element={<History />} />
+                    <Route path="/sessions" element={<Sessions />} />  {/* <-- NEW route */}
 
                     {/* ============ ADMIN ROUTES ============ */}
                     <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>} />

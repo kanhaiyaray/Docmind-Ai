@@ -13,6 +13,9 @@ const {
   getMe,
   updateProfile,
   changePassword,
+  getSessions,
+  revokeSession,
+  revokeOthers,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 const authRateLimiter = require('../middleware/authRateLimiter');
@@ -26,7 +29,6 @@ const passwordValidations = [
     .matches(/[0-9]/).withMessage('Password must contain a number')
     .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('Password must contain a special character')
     .custom((value) => {
-      // List of common weak passwords – can be extended
       const common = ['password', '12345678', 'qwerty', 'abc123', 'password123'];
       if (common.includes(value.toLowerCase())) {
         throw new Error('Password is too common. Please choose a stronger one.');
@@ -44,7 +46,7 @@ const registerValidation = [
     .trim()
     .isEmail().withMessage('Please provide a valid email')
     .normalizeEmail(),
-  ...passwordValidations, // reuse
+  ...passwordValidations,
 ];
 
 const loginValidation = [
@@ -58,7 +60,7 @@ const loginValidation = [
 // ---- Public routes with rate limiting ----
 router.post('/register', authRateLimiter(5, 60 * 60 * 1000), registerValidation, register);
 router.post('/login', authRateLimiter(5, 15 * 60 * 1000), loginValidation, login);
-router.get('/verify-email', verifyEmail); // no rate limit needed, single-use token
+router.get('/verify-email', verifyEmail);
 router.post('/forgot-password', authRateLimiter(3, 60 * 60 * 1000), forgotPassword);
 router.post('/reset-password', authRateLimiter(5, 60 * 60 * 1000), resetPassword);
 router.post('/refresh', refreshToken);
@@ -68,8 +70,11 @@ router.post('/logout', protect, logout);
 router.post('/logout-all', protect, logoutAll);
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfile);
-
-// Password change – apply same validation
 router.put('/password', protect, passwordValidations, changePassword);
+
+// ---- NEW: Session management ----
+router.get('/sessions', protect, getSessions);
+router.delete('/sessions/:id', protect, revokeSession);
+router.post('/sessions/revoke-others', protect, revokeOthers);
 
 module.exports = router;

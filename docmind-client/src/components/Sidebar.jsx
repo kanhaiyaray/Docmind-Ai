@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import {
   FileText, MessageSquare, Home, LayoutDashboard,
   Sparkles, Zap, BookOpen, History, Settings,
-  LogOut, Plus, ChevronRight, FolderOpen, BarChart3
+  LogOut, Plus, ChevronRight, FolderOpen, BarChart3,
+  Monitor
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -50,11 +51,12 @@ const Sidebar = () => {
         <div className="sidebar-section-title">Workspace</div>
         <SidebarItem to="/history" icon={<History className="h-4 w-4" />} label="History" active={isActive('/history')} />
         <SidebarItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" active={isActive('/settings')} />
+        <SidebarItem to="/sessions" icon={<Monitor className="h-4 w-4" />} label="Sessions" active={isActive('/sessions')} />  {/* <-- NEW item */}
 
         {/* ---------- Admin Section (visible only to admin users) ---------- */}
         {user?.role === 'admin' && (
           <>
-            <div className="sidebar-section-title">Admin</div>
+            <div className="sidebar-section-title">ADMIN (Kanhaiya)</div>
             <SidebarItem to="/admin" icon={<LayoutDashboard className="h-4 w-4" />} label="Admin Dashboard" active={isActive('/admin')} />
           </>
         )}
