@@ -1,6 +1,6 @@
 ﻿const Document = require('../models/Document');
 const Chunk = require('../models/Chunk');
-const { generateChatResponse } = require('../config/groq');
+const { generateOpenAIResponse } = require('../services/openaiService');
 
 // @desc    Generate document summary
 // @route   POST /api/documents/summary
@@ -39,9 +39,9 @@ exports.generateSummary = async (req, res) => {
       });
     }
     
-    // Generate summary using Groq
+    // Generate summary using OpenAI
     const prompt = `Summarize the following document concisely. Focus on the main points, key findings, and conclusions.\n\n${fullText.substring(0, 15000)}`;
-    const summary = await generateChatResponse(prompt);
+    const summary = await generateOpenAIResponse(prompt);
     
     // Save summary to document
     document.summary = summary;
@@ -97,7 +97,7 @@ exports.suggestQuestions = async (req, res) => {
     }
     
     const prompt = `Based on the following document content, generate 5 insightful questions a user might ask about this document. Make them diverse and cover different aspects. Return only the questions, one per line, numbered.\n\n${context.substring(0, 10000)}`;
-    const response = await generateChatResponse(prompt);
+    const response = await generateOpenAIResponse(prompt);
     
     // Parse questions from response
     const questions = response

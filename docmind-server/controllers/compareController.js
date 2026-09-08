@@ -1,6 +1,6 @@
 ﻿const Document = require("../models/Document");
 const Chunk = require("../models/Chunk");
-const { generateChatResponse } = require("../config/groq");
+const { generateOpenAIResponse } = require("../services/openaiService");
 
 exports.compareDocuments = async (req, res) => {
   try {
@@ -70,7 +70,7 @@ Return your answer as a JSON object with the following keys:
 Return ONLY the JSON object, no extra text.
 `;
 
-    const response = await generateChatResponse(prompt);
+    const response = await generateOpenAIResponse(prompt);
     let comparison;
     try {
       const jsonMatch = response.match(/\{.*\}/s);

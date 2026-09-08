@@ -1,7 +1,7 @@
 ﻿const Document = require("../models/Document");
 const Chunk = require("../models/Chunk");
-const { generateChatResponse } = require("../config/groq");
-const ActivityLog = require("../models/ActivityLog"); // added
+const { generateOpenAIResponse } = require("../services/openaiService");
+const ActivityLog = require("../models/ActivityLog");
 
 exports.generateFlashcards = async (req, res) => {
   try {
@@ -59,8 +59,8 @@ Return the flashcards as a JSON array where each object has:
 Return ONLY the JSON array, no extra text.
 `;
 
-    console.log("🧠 Sending prompt to Groq...");
-    const response = await generateChatResponse(prompt);
+    console.log("🧠 Sending prompt to OpenAI...");
+    const response = await generateOpenAIResponse(prompt);
     console.log("📥 Raw response:", response);
 
     let flashcards;

@@ -1,7 +1,7 @@
 ﻿const Document = require("../models/Document");
 const Chunk = require("../models/Chunk");
-const { generateChatResponse } = require("../config/groq");
-const ActivityLog = require("../models/ActivityLog"); // added
+const { generateOpenAIResponse } = require("../services/openaiService");
+const ActivityLog = require("../models/ActivityLog");
 
 exports.generateQuiz = async (req, res) => {
   try {
@@ -74,7 +74,7 @@ Return the questions as a JSON array. Each object must have:
 Return ONLY the JSON array, no extra text.
 `;
 
-    const response = await generateChatResponse(prompt);
+    const response = await generateOpenAIResponse(prompt);
     let questions;
     try {
       const jsonMatch = response.match(/\[.*\]/s);
