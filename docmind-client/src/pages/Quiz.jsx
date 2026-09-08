@@ -7,6 +7,8 @@ const Quiz = () => {
   const [documents, setDocuments] = useState([]);
   const [selectedDoc, setSelectedDoc] = useState("");
   const [numQuestions, setNumQuestions] = useState(5);
+  const [difficulty, setDifficulty] = useState("medium");
+  const [questionType, setQuestionType] = useState("multiple-choice");
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -40,6 +42,8 @@ const Quiz = () => {
       const res = await api.post("/quiz/generate", {
         documentId: selectedDoc,
         numQuestions,
+        difficulty,
+        questionType,
       });
       setQuestions(res.data.questions || []);
       toast.success("Quiz generated!");
@@ -73,7 +77,7 @@ const Quiz = () => {
 
       <div className="glass-card p-6 mb-8 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
+          <div className="flex-1 min-w-[180px]">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Document</label>
             <select
               value={selectedDoc}
@@ -88,7 +92,8 @@ const Quiz = () => {
               ))}
             </select>
           </div>
-          <div className="w-32">
+
+          <div className="w-24">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Questions</label>
             <input
               type="number"
@@ -99,6 +104,33 @@ const Quiz = () => {
               className="input-custom dark:bg-gray-700 dark:text-white dark:border-gray-600"
             />
           </div>
+
+          <div className="flex-1 min-w-[150px]">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Difficulty</label>
+            <select
+              value={difficulty}
+              onChange={(e) => setDifficulty(e.target.value)}
+              className="input-custom dark:bg-gray-700 dark:text-white dark:border-gray-600"
+            >
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-[160px]">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Question Type</label>
+            <select
+              value={questionType}
+              onChange={(e) => setQuestionType(e.target.value)}
+              className="input-custom dark:bg-gray-700 dark:text-white dark:border-gray-600"
+            >
+              <option value="multiple-choice">Multiple Choice</option>
+              <option value="true-false">True / False</option>
+              <option value="fill-in">Fill in the Blank</option>
+            </select>
+          </div>
+
           <button
             onClick={generateQuiz}
             disabled={loading || !selectedDoc}
@@ -110,13 +142,14 @@ const Quiz = () => {
         </div>
       </div>
 
+      {/* Rest of the component (questions display, submission, results) – unchanged */}
       {questions.length > 0 && !submitted && (
         <div className="space-y-6">
           {questions.map((q, idx) => (
             <div key={idx} className="glass-card p-5 dark:bg-gray-800 dark:border-gray-700">
               <p className="font-medium text-gray-900 dark:text-white mb-2">{idx+1}. {q.question}</p>
               <div className="space-y-2">
-                {q.options.map((opt, oi) => (
+                {q.options && q.options.map((opt, oi) => (
                   <label key={oi} className="flex items-center gap-2">
                     <input
                       type="radio"
@@ -129,6 +162,15 @@ const Quiz = () => {
                     <span className="text-sm text-gray-700 dark:text-gray-300">{opt}</span>
                   </label>
                 ))}
+                {!q.options && (
+                  <input
+                    type="text"
+                    placeholder="Type your answer..."
+                    value={answers[idx] || ''}
+                    onChange={(e) => handleAnswerChange(idx, e.target.value)}
+                    className="input-custom"
+                  />
+                )}
               </div>
             </div>
           ))}
@@ -153,37 +195,40 @@ const Quiz = () => {
             {questions.map((q, idx) => {
               const userAnswer = answers[idx];
               const correctAnswer = q.correctAnswer;
-              const isCorrectAnswer = userAnswer === correctAnswer;
+              const isCorrect = userAnswer === correctAnswer;
               return (
                 <div key={idx} className="glass-card p-5 dark:bg-gray-800 dark:border-gray-700">
                   <p className="font-medium text-gray-900 dark:text-white mb-2">{idx+1}. {q.question}</p>
-                  <div className="space-y-2">
-                    {q.options.map((opt, oi) => {
-                      const isCorrect = opt === correctAnswer;
-                      const isUserSelected = opt === userAnswer;
-                      let borderClass = "border-gray-200 dark:border-gray-600";
-                      if (submitted) {
-                        if (isCorrect) borderClass = "border-green-500 bg-green-50 dark:bg-green-900/20";
-                        else if (isUserSelected && !isCorrect) borderClass = "border-red-500 bg-red-50 dark:bg-red-900/20";
-                      }
-                      return (
-                        <div key={oi} className={`flex items-center gap-2 p-2 rounded-lg border ${borderClass}`}>
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{opt}</span>
-                          {submitted && isCorrect && <CheckCircle className="h-4 w-4 text-green-600 ml-auto" />}
-                          {submitted && isUserSelected && !isCorrect && <XCircle className="h-4 w-4 text-red-600 ml-auto" />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {submitted && (
-                    <div className="mt-2 text-sm">
-                      {isCorrectAnswer ? (
-                        <span className="text-green-600 dark:text-green-400">✅ Correct!</span>
-                      ) : (
-                        <span className="text-red-600 dark:text-red-400">❌ Incorrect. Correct answer: <strong>{correctAnswer}</strong></span>
-                      )}
+                  {q.options ? (
+                    <div className="space-y-2">
+                      {q.options.map((opt, oi) => {
+                        const isCorrectOption = opt === correctAnswer;
+                        const isUserSelected = opt === userAnswer;
+                        let borderClass = "border-gray-200 dark:border-gray-600";
+                        if (isCorrectOption) borderClass = "border-green-500 bg-green-50 dark:bg-green-900/20";
+                        else if (isUserSelected && !isCorrectOption) borderClass = "border-red-500 bg-red-50 dark:bg-red-900/20";
+                        return (
+                          <div key={oi} className={`flex items-center gap-2 p-2 rounded-lg border ${borderClass}`}>
+                            <span className="text-sm text-gray-700 dark:text-gray-300">{opt}</span>
+                            {isCorrectOption && <CheckCircle className="h-4 w-4 text-green-600 ml-auto" />}
+                            {isUserSelected && !isCorrectOption && <XCircle className="h-4 w-4 text-red-600 ml-auto" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-1">
+                      <p className="text-sm text-gray-700 dark:text-gray-300">Your answer: <span className="font-medium">{userAnswer || "(not answered)"}</span></p>
+                      <p className="text-sm text-green-600 dark:text-green-400">Correct answer: <span className="font-medium">{correctAnswer}</span></p>
                     </div>
                   )}
+                  <div className="mt-2 text-sm">
+                    {isCorrect ? (
+                      <span className="text-green-600 dark:text-green-400">✅ Correct!</span>
+                    ) : (
+                      <span className="text-red-600 dark:text-red-400">❌ Incorrect. Correct answer: <strong>{correctAnswer}</strong></span>
+                    )}
+                  </div>
                 </div>
               );
             })}

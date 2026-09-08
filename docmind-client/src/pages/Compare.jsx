@@ -1,7 +1,18 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
-import { BarChart3, Loader, FileText, Check, X, Sparkles } from "lucide-react";
+import {
+  BarChart3,
+  Loader,
+  FileText,
+  Check,
+  X,
+  Sparkles,
+  BookOpen,
+  GitCompare,
+  ListChecks,
+  AlertCircle,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 const Compare = () => {
@@ -48,6 +59,7 @@ const Compare = () => {
     setLoading(true);
     try {
       const res = await api.post("/compare", { documentIds: selected });
+      // New response: { comparison: { themes, similarities, differences, complementary } }
       setComparison(res.data.comparison);
       toast.success("Comparison ready");
     } catch (err) {
@@ -71,9 +83,7 @@ const Compare = () => {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
         <BarChart3 className="h-8 w-8 text-purple-600" />
-        <h1 className="text-2xl font-bold text-gray-900">
-          Document Comparison
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900">Document Comparison</h1>
       </div>
 
       <div className="grid md:grid-cols-2 gap-8">
@@ -137,16 +147,68 @@ const Compare = () => {
               <p>Select documents and click "Compare"</p>
             </div>
           ) : (
-            <div className="prose prose-sm max-w-none">
-              <div className="bg-purple-50 rounded-lg p-4 mb-4">
+            <div className="space-y-4">
+              <div className="bg-purple-50 rounded-lg p-4 mb-2">
                 <p className="text-sm font-medium text-purple-700">
                   Comparing: {selected.map(getDocTitle).join(" vs ")}
                 </p>
               </div>
-              <div
-                className="whitespace-pre-wrap"
-                dangerouslySetInnerHTML={{ __html: comparison }}
-              />
+
+              {/* Themes */}
+              {comparison.themes && comparison.themes.length > 0 && (
+                <div>
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <BookOpen className="h-4 w-4 text-purple-500" /> Themes
+                  </h3>
+                  <ul className="mt-1 ml-6 list-disc text-sm text-gray-600 space-y-1">
+                    {comparison.themes.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Similarities */}
+              {comparison.similarities && comparison.similarities.length > 0 && (
+                <div>
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <GitCompare className="h-4 w-4 text-green-500" /> Similarities
+                  </h3>
+                  <ul className="mt-1 ml-6 list-disc text-sm text-gray-600 space-y-1">
+                    {comparison.similarities.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Differences */}
+              {comparison.differences && comparison.differences.length > 0 && (
+                <div>
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <AlertCircle className="h-4 w-4 text-red-500" /> Differences
+                  </h3>
+                  <ul className="mt-1 ml-6 list-disc text-sm text-gray-600 space-y-1">
+                    {comparison.differences.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Complementary */}
+              {comparison.complementary && comparison.complementary.length > 0 && (
+                <div>
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <ListChecks className="h-4 w-4 text-blue-500" /> Complementary Information
+                  </h3>
+                  <ul className="mt-1 ml-6 list-disc text-sm text-gray-600 space-y-1">
+                    {comparison.complementary.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </div>

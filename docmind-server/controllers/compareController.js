@@ -25,7 +25,7 @@ exports.compareDocuments = async (req, res) => {
       });
     }
 
-    // Gather chunks from each document (limit to 5 pages per doc to keep context manageable)
+    // Gather chunks (up to 20 per doc)
     const chunksPerDoc = await Promise.all(
       docs.map(async (doc) => {
         const chunks = await Chunk.find({ documentId: doc._id })
@@ -41,7 +41,7 @@ exports.compareDocuments = async (req, res) => {
       })
     );
 
-    // Build prompt for comparison
+    // Build context
     let context = "";
     chunksPerDoc.forEach((doc, idx) => {
       context += `DOCUMENT ${idx + 1}: "${doc.title}"\n`;
@@ -52,7 +52,7 @@ exports.compareDocuments = async (req, res) => {
     });
 
     const prompt = `
-You are a comparison expert. Compare the following documents and provide a clear, structured analysis covering:
+You are a comparison expert. Compare the following documents and provide a structured analysis covering:
 - Main themes and topics covered in each document
 - Key similarities
 - Key differences
@@ -61,10 +61,37 @@ You are a comparison expert. Compare the following documents and provide a clear
 Documents:
 ${context}
 
-Format the output as HTML with headings and bullet points for readability.
+Return your answer as a JSON object with the following keys:
+- "themes": array of strings (overall themes)
+- "similarities": array of strings
+- "differences": array of strings
+- "complementary": array of strings (how the documents complement each other)
+
+Return ONLY the JSON object, no extra text.
 `;
 
-    const comparison = await generateChatResponse(prompt);
+    const response = await generateChatResponse(prompt);
+    let comparison;
+    try {
+      const jsonMatch = response.match(/\{.*\}/s);
+      if (jsonMatch) {
+        comparison = JSON.parse(jsonMatch[0]);
+      } else {
+        comparison = JSON.parse(response);
+      }
+    } catch (err) {
+      console.error("Comparison JSON parse error:", err.message);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to parse AI response. Please try again.",
+      });
+    }
+
+    // Ensure all keys exist
+    const defaultKeys = ["themes", "similarities", "differences", "complementary"];
+    defaultKeys.forEach((key) => {
+      if (!comparison[key]) comparison[key] = [];
+    });
 
     res.json({
       success: true,

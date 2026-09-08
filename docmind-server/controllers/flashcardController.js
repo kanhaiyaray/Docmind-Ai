@@ -4,7 +4,8 @@ const { generateChatResponse } = require("../config/groq");
 
 exports.generateFlashcards = async (req, res) => {
   try {
-    const { documentId, numCards = 10 } = req.body;
+    const { documentId, numCards = 10, includeExamples = false } = req.body;
+
     if (!documentId) {
       return res.status(400).json({
         success: false,
@@ -32,11 +33,18 @@ exports.generateFlashcards = async (req, res) => {
       });
     }
 
-    const content = chunks.map(c => c.content).join("\n\n");
+    const content = chunks.map((c) => c.content).join("\n\n");
+
+    let examplesInstruction = "";
+    if (includeExamples) {
+      examplesInstruction =
+        "For each flashcard, also provide a short example or a practical usage context to illustrate the concept.";
+    }
 
     const prompt = `
 Based on the following document content, generate ${numCards} flashcards (question-answer pairs) that capture key concepts, definitions, or important facts.
 Each flashcard should have a clear question and a concise answer.
+${examplesInstruction}
 
 Document content:
 ${content}
@@ -44,9 +52,10 @@ ${content}
 Return the flashcards as a JSON array where each object has:
 {
   "question": "string",
-  "answer": "string"
+  "answer": "string",
+  "example": "string" (only if includeExamples is true, otherwise omit)
 }
-Return only the JSON array, no extra text.
+Return ONLY the JSON array, no extra text.
 `;
 
     console.log("🧠 Sending prompt to Groq...");
@@ -63,7 +72,6 @@ Return only the JSON array, no extra text.
       }
     } catch (err) {
       console.error("❌ JSON parsing error:", err.message);
-      console.error("Response was:", response);
       return res.status(500).json({
         success: false,
         message: "Failed to parse AI response. Please try again.",
