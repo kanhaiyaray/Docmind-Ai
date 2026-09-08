@@ -101,7 +101,13 @@ const processDocument = async (documentId, filePath, userId) => {
     console.log(`✅ Document ${documentId} processed successfully`);
 
     // Clean up uploaded file (optional)
-    // fs.unlinkSync(filePath);
+    try {
+      fs.unlinkSync(filePath);
+      console.log(`🗑️ Deleted uploaded file: ${filePath}`);
+    } catch (unlinkError) {
+      console.error(`⚠️ Failed to delete uploaded file ${filePath}:`, unlinkError.message);
+      // Non-critical error, do not fail processing
+    }
 
   } catch (error) {
     console.error(`❌ Error processing document ${documentId}:`, error);
