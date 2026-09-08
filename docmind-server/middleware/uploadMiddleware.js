@@ -14,7 +14,6 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    // Generate unique filename: userId-timestamp-originalname
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
     const ext = path.extname(file.originalname);
     const basename = path.basename(file.originalname, ext);
@@ -28,11 +27,11 @@ const fileFilter = (req, file, cb) => {
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Only PDF files are allowed'), false);
+    cb(new Error('Only PDF files are allowed. Please upload a valid PDF.'), false);
   }
 };
 
-// Configure multer
+// Configure multer with improved limits and error handling
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
@@ -41,15 +40,28 @@ const upload = multer({
   },
 });
 
-// Middleware to handle upload errors
+// Enhanced error handling middleware
 const handleUploadError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'FILE_TOO_LARGE') {
       return res.status(400).json({
         success: false,
-        message: 'File too large. Maximum size is 10MB',
+        message: `File too large. Maximum size is ${(parseInt(process.env.MAX_FILE_SIZE) || 10)}MB.`,
       });
     }
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Unexpected file field. Only one file allowed.',
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: `Upload error: ${err.message}`,
+    });
+  }
+  // Handle custom fileFilter error
+  if (err.message && err.message.includes('Only PDF files')) {
     return res.status(400).json({
       success: false,
       message: err.message,

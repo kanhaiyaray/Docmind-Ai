@@ -57,7 +57,7 @@ const uploadDocument = async (req, res) => {
   }
 };
 
-// Process document (extract text, chunk, embed)
+// Process document (extract text, chunk, embed) – with enhanced error handling
 const processDocument = async (documentId, filePath, userId) => {
   try {
     console.log(`🔄 Processing document ${documentId}...`);
@@ -68,11 +68,22 @@ const processDocument = async (documentId, filePath, userId) => {
       return;
     }
 
-    // Extract text from PDF
-    console.log(`📖 Extracting text from PDF...`);
-    const extraction = await pdfService.extractText(filePath);
-    console.log(`✅ Extracted ${extraction.pageCount} pages, ${extraction.totalChars} characters`);
-    
+    // ---------- STEP 1: Extract text ----------
+    let extraction;
+    try {
+      console.log(`📖 Extracting text from PDF...`);
+      extraction = await pdfService.extractText(filePath);
+      console.log(`✅ Extracted ${extraction.pageCount} pages, ${extraction.totalChars} characters`);
+    } catch (extractError) {
+      console.error(`❌ Text extraction failed:`, extractError.message);
+      document.status = 'failed';
+      document.processingError = `Text extraction failed: ${extractError.message}`;
+      await document.save();
+      // Clean up uploaded file
+      try { fs.unlinkSync(filePath); } catch (e) {}
+      return;
+    }
+
     // Update document with page count and metadata
     document.pageCount = extraction.pageCount;
     if (extraction.metadata) {
@@ -80,43 +91,70 @@ const processDocument = async (documentId, filePath, userId) => {
     }
     await document.save();
 
-    // Chunk the text
-    console.log(`🧩 Chunking document...`);
-    const totalChunks = await chunkService.chunkDocument(
-      documentId,
-      userId,
-      extraction.pages
-    );
-    console.log(`✅ Created ${totalChunks} chunks`);
+    // ---------- STEP 2: Chunk text ----------
+    let totalChunks;
+    try {
+      console.log(`🧩 Chunking document...`);
+      totalChunks = await chunkService.chunkDocument(
+        documentId,
+        userId,
+        extraction.pages
+      );
+      console.log(`✅ Created ${totalChunks} chunks`);
+    } catch (chunkError) {
+      console.error(`❌ Chunking failed:`, chunkError.message);
+      document.status = 'failed';
+      document.processingError = `Chunking failed: ${chunkError.message}`;
+      await document.save();
+      try { fs.unlinkSync(filePath); } catch (e) {}
+      return;
+    }
 
-    // Fetch all chunks to generate embeddings
-    const allChunks = await Chunk.find({ documentId }).sort({ chunkIndex: 1 });
-    console.log(`🧠 Generating embeddings for ${allChunks.length} chunks...`);
-    await embeddingService.generateAndStoreEmbeddings(allChunks);
-    console.log(`✅ Embeddings generated`);
+    if (totalChunks === 0) {
+      document.status = 'failed';
+      document.processingError = 'No text content extracted from the document. It may be empty or contain only images without OCR support.';
+      await document.save();
+      try { fs.unlinkSync(filePath); } catch (e) {}
+      return;
+    }
 
-    // Update document status
+    // ---------- STEP 3: Generate embeddings ----------
+    try {
+      const allChunks = await Chunk.find({ documentId }).sort({ chunkIndex: 1 });
+      console.log(`🧠 Generating embeddings for ${allChunks.length} chunks...`);
+      await embeddingService.generateAndStoreEmbeddings(allChunks);
+      console.log(`✅ Embeddings generated`);
+    } catch (embedError) {
+      console.error(`❌ Embedding generation failed:`, embedError.message);
+      document.status = 'failed';
+      document.processingError = `Embedding generation failed: ${embedError.message}`;
+      await document.save();
+      try { fs.unlinkSync(filePath); } catch (e) {}
+      return;
+    }
+
+    // ---------- STEP 4: Mark as completed ----------
     document.status = 'completed';
     await document.save();
     console.log(`✅ Document ${documentId} processed successfully`);
 
-    // Clean up uploaded file (optional)
+    // ---------- Clean up uploaded file ----------
     try {
       fs.unlinkSync(filePath);
       console.log(`🗑️ Deleted uploaded file: ${filePath}`);
     } catch (unlinkError) {
       console.error(`⚠️ Failed to delete uploaded file ${filePath}:`, unlinkError.message);
-      // Non-critical error, do not fail processing
     }
 
   } catch (error) {
-    console.error(`❌ Error processing document ${documentId}:`, error);
-    
+    console.error(`❌ Unhandled error processing document ${documentId}:`, error);
     // Update document status to failed
     await Document.findByIdAndUpdate(documentId, {
       status: 'failed',
-      processingError: error.message,
+      processingError: `Processing failed: ${error.message}`,
     });
+    // Try to clean up the uploaded file
+    try { fs.unlinkSync(filePath); } catch (e) {}
   }
 };
 
