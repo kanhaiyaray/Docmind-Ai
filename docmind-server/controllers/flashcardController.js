@@ -1,6 +1,7 @@
 ﻿const Document = require("../models/Document");
 const Chunk = require("../models/Chunk");
 const { generateChatResponse } = require("../config/groq");
+const ActivityLog = require("../models/ActivityLog"); // added
 
 exports.generateFlashcards = async (req, res) => {
   try {
@@ -83,6 +84,19 @@ Return ONLY the JSON array, no extra text.
         success: false,
         message: "AI returned empty or invalid flashcards.",
       });
+    }
+
+    // ========== LOG ACTIVITY ==========
+    try {
+      await ActivityLog.create({
+        userId: req.userId,
+        action: 'generate_flashcards',
+        details: { documentId, numCards, includeExamples },
+        ip: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (logError) {
+      console.error('Failed to log flashcard generation:', logError);
     }
 
     res.json({

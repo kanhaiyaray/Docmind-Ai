@@ -1,6 +1,5 @@
-﻿// ============================================================
-// ADVANCED ADMIN MODULE – Full routes
-// ============================================================
+﻿// ADVANCED ADMIN MODULE – Full routes
+
 const express = require('express');
 const router = express.Router();
 const User = require('./models/User');
@@ -39,9 +38,7 @@ const logActivity = async (userId, action, details, req) => {
   } catch (err) { console.error('Activity log error:', err); }
 };
 
-// ================================================================
 // USER MANAGEMENT
-// ================================================================
 
 router.get('/users', async (req, res) => {
   try {
@@ -159,9 +156,7 @@ router.delete('/users', async (req, res) => {
   }
 });
 
-// ================================================================
 // DOCUMENT MANAGEMENT
-// ================================================================
 
 router.get('/documents', async (req, res) => {
   try {
@@ -248,9 +243,7 @@ router.delete('/documents', async (req, res) => {
   }
 });
 
-// ================================================================
 // SYSTEM STATISTICS (Advanced)
-// ================================================================
 
 router.get('/stats', async (req, res) => {
   try {
@@ -317,9 +310,7 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// ================================================================
 // ACTIVITY LOGS
-// ================================================================
 
 router.get('/logs', async (req, res) => {
   try {
@@ -350,9 +341,7 @@ router.get('/logs', async (req, res) => {
   }
 });
 
-// ================================================================
 // SYSTEM SETTINGS
-// ================================================================
 
 router.get('/settings', async (req, res) => {
   try {
@@ -386,9 +375,7 @@ router.put('/settings/:key', async (req, res) => {
   }
 });
 
-// ================================================================
 // EXPORT FUNCTIONALITY
-// ================================================================
 
 router.get('/export/users', async (req, res) => {
   try {
@@ -421,6 +408,66 @@ router.get('/export/documents', async (req, res) => {
     res.status(500).json({ success: false, message: 'Export failed' });
   }
 });
+
+// ADVANCED ANALYTICS (NEW)
+
+router.get('/analytics', async (req, res) => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Daily user registrations
+    const userRegistrations = await User.aggregate([
+      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Daily document uploads
+    const docUploads = await Document.aggregate([
+      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Average docs per user
+    const totalUsers = await User.countDocuments();
+    const totalDocs = await Document.countDocuments();
+    const avgDocsPerUser = totalUsers ? (totalDocs / totalUsers).toFixed(2) : 0;
+
+    // Count quiz and flashcard generations (from ActivityLog)
+    const quizGenerations = await ActivityLog.countDocuments({ action: 'generate_quiz' });
+    const flashcardGenerations = await ActivityLog.countDocuments({ action: 'generate_flashcards' });
+
+    res.json({
+      success: true,
+      analytics: {
+        userRegistrations,
+        docUploads,
+        avgDocsPerUser,
+        quizGenerations,
+        flashcardGenerations,
+        totalUsers,
+        totalDocs,
+      },
+    });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch analytics' });
+  }
+});
+
+// MODULE EXPORTS
 
 module.exports = {
   router,

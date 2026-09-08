@@ -1,6 +1,7 @@
 ﻿const Document = require("../models/Document");
 const Chunk = require("../models/Chunk");
 const { generateChatResponse } = require("../config/groq");
+const ActivityLog = require("../models/ActivityLog"); // added
 
 exports.generateQuiz = async (req, res) => {
   try {
@@ -95,6 +96,19 @@ Return ONLY the JSON array, no extra text.
         success: false,
         message: "AI returned an empty or invalid quiz.",
       });
+    }
+
+    // ========== LOG ACTIVITY ==========
+    try {
+      await ActivityLog.create({
+        userId: req.userId,
+        action: 'generate_quiz',
+        details: { documentId, numQuestions, difficulty, questionType },
+        ip: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (logError) {
+      console.error('Failed to log quiz generation:', logError);
     }
 
     res.json({

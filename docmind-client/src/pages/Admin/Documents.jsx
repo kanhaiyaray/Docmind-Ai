@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
-import { Loader, Trash2, Search } from 'lucide-react';
+import { Loader, Trash2, Search, CheckSquare, Square } from 'lucide-react';
 
 const AdminDocuments = () => {
   const [documents, setDocuments] = useState([]);
@@ -10,6 +10,8 @@ const AdminDocuments = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
   const { handleError, handleSuccess } = useErrorHandler();
+  const [selectedDocs, setSelectedDocs] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   useEffect(() => { fetchDocuments(); }, [page, search]);
 
@@ -19,6 +21,8 @@ const AdminDocuments = () => {
       const res = await api.get('/admin/documents', { params: { page, limit: 20, search } });
       setDocuments(res.data.documents);
       setTotalPages(res.data.pagination.pages);
+      setSelectedDocs([]);
+      setSelectAll(false);
     } catch (err) {
       handleError(err, 'Failed to load documents');
     } finally { setLoading(false); }
@@ -35,6 +39,33 @@ const AdminDocuments = () => {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedDocs.length === 0) return;
+    if (!window.confirm(`Delete ${selectedDocs.length} document(s)? This action is irreversible.`)) return;
+    try {
+      await api.delete('/admin/documents', { data: { documentIds: selectedDocs } });
+      handleSuccess(`${selectedDocs.length} documents deleted`);
+      fetchDocuments();
+    } catch (err) {
+      handleError(err, 'Bulk delete failed');
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedDocs(prev =>
+      prev.includes(id) ? prev.filter(did => did !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedDocs([]);
+    } else {
+      setSelectedDocs(documents.map(d => d._id));
+    }
+    setSelectAll(!selectAll);
+  };
+
   const getStatusBadge = (status) => {
     const colors = { completed: 'bg-green-100 text-green-700', processing: 'bg-yellow-100 text-yellow-700', failed: 'bg-red-100 text-red-700' };
     return <span className={`px-2 py-1 rounded text-xs ${colors[status] || 'bg-gray-100 text-gray-700'}`}>{status || 'pending'}</span>;
@@ -46,7 +77,14 @@ const AdminDocuments = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">All Documents</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">All Documents</h1>
+        {selectedDocs.length > 0 && (
+          <button onClick={handleBulkDelete} className="btn-primary bg-red-600 hover:bg-red-700 flex items-center gap-2">
+            <Trash2 size={16} /> Delete Selected ({selectedDocs.length})
+          </button>
+        )}
+      </div>
       <div className="mb-4 relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
         <input type="text" placeholder="Search documents..." value={search} onChange={(e) => setSearch(e.target.value)} className="input-custom pl-10" />
@@ -55,6 +93,11 @@ const AdminDocuments = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <button onClick={toggleSelectAll} className="flex items-center gap-1">
+                  {selectAll ? <CheckSquare size={16} /> : <Square size={16} />}
+                </button>
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pages</th>
@@ -65,6 +108,11 @@ const AdminDocuments = () => {
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {documents.map((doc) => (
               <tr key={doc._id}>
+                <td className="px-6 py-4">
+                  <button onClick={() => toggleSelect(doc._id)} className="flex items-center">
+                    {selectedDocs.includes(doc._id) ? <CheckSquare size={16} className="text-purple-600" /> : <Square size={16} className="text-gray-400" />}
+                  </button>
+                </td>
                 <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{doc.title}</td>
                 <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{doc.userId?.email || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{doc.pageCount || 0}</td>
