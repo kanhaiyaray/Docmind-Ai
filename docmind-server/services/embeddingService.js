@@ -1,80 +1,62 @@
-﻿const Chunk = require('../models/Chunk');
-const aiService = require('./aiService');
+﻿// docmind-server/services/embeddingService.js
+const Chunk = require('../models/Chunk');
+const embeddingClient = require('./embeddingClient');
 
-// Generate and store embeddings for chunks - optimized
+// Generate and store embeddings for chunks
 const generateAndStoreEmbeddings = async (chunks) => {
-  try {
-    if (!chunks || chunks.length === 0) return [];
+  if (!chunks || chunks.length === 0) return [];
 
-    const batchSize = 5;
-    const embeddings = [];
-    let processed = 0;
-    
-    for (let i = 0; i < chunks.length; i += batchSize) {
-      const batch = chunks.slice(i, i + batchSize);
-      const batchContents = batch.map(chunk => chunk.content);
-      
-      // Use AI service for embeddings
-      const batchEmbeddings = await aiService.generateBatchEmbeddings(batchContents);
+  const batchSize = 20; // can adjust based on rate limits
+  const embeddings = [];
+
+  for (let i = 0; i < chunks.length; i += batchSize) {
+    const batch = chunks.slice(i, i + batchSize);
+    const batchContents = batch.map(chunk => chunk.content);
+    try {
+      const batchEmbeddings = await embeddingClient.embed(batchContents);
       embeddings.push(...batchEmbeddings);
-      
-      processed += batch.length;
-      console.log(`🧠 Generated embeddings for ${processed}/${chunks.length} chunks`);
-      
-      if (i + batchSize < chunks.length) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      
-      if (global.gc) {
-        global.gc();
-      }
+      console.log(`🧠 Generated embeddings for ${Math.min(i + batchSize, chunks.length)}/${chunks.length} chunks`);
+    } catch (err) {
+      console.error(`❌ Embedding batch failed at index ${i}:`, err.message);
+      throw err;
     }
-
-    const updateBatchSize = 20;
-    let updated = 0;
-    
-    for (let i = 0; i < chunks.length; i += updateBatchSize) {
-      const batch = chunks.slice(i, i + updateBatchSize);
-      const updatePromises = batch.map((chunk, index) => {
-        const globalIndex = i + index;
-        return Chunk.findByIdAndUpdate(
-          chunk._id,
-          { embedding: embeddings[globalIndex] },
-          { new: true }
-        );
-      });
-      
-      await Promise.all(updatePromises);
-      updated += batch.length;
-      console.log(`💾 Updated ${updated}/${chunks.length} chunks with embeddings`);
-      
-      if (global.gc) {
-        global.gc();
-      }
-    }
-
-    console.log(`✅ Generated ${embeddings.length} embeddings`);
-    return chunks;
-  } catch (error) {
-    console.error('Embedding generation error:', error);
-    throw new Error(`Failed to generate embeddings: ${error.message}`);
   }
+
+  // Validate each embedding before saving
+  const validatedEmbeddings = embeddings.map((emb, idx) => {
+    if (!Array.isArray(emb) || emb.length !== 384) {
+      console.warn(`⚠️ Invalid embedding at index ${idx} – expected length 384, got ${emb?.length || 'undefined'}. Skipping.`);
+      return null;
+    }
+    // Ensure all elements are numbers
+    const allNumbers = emb.every(v => typeof v === 'number' && !isNaN(v));
+    if (!allNumbers) {
+      console.warn(`⚠️ Embedding at index ${idx} contains non‑numeric values. Skipping.`);
+      return null;
+    }
+    return emb;
+  });
+
+  // Update each chunk with its embedding (or null if invalid)
+  const updatePromises = chunks.map((chunk, idx) => {
+    const embedding = validatedEmbeddings[idx] || null;
+    return Chunk.findByIdAndUpdate(chunk._id, { embedding });
+  });
+  await Promise.all(updatePromises);
+
+  const storedCount = validatedEmbeddings.filter(e => e !== null).length;
+  console.log(`✅ Stored ${storedCount} valid embeddings out of ${chunks.length} chunks.`);
+  return chunks;
 };
 
-// Generate embedding for single text
+// Generate embedding for a single text
 const generateEmbeddingForText = async (text) => {
-  try {
-    return await aiService.generateEmbedding(text);
-  } catch (error) {
-    console.error('Embedding generation error:', error);
-    throw new Error(`Failed to generate embedding: ${error.message}`);
+  const result = await embeddingClient.embed(text);
+  if (!result || !result[0] || !Array.isArray(result[0]) || result[0].length !== 384) {
+    console.warn('⚠️ Invalid embedding generated for text, returning null.');
+    return null;
   }
-};
-
-// Get embedding for a chunk
-const getChunkEmbedding = async (chunkId) => {
-  const chunk = await Chunk.findById(chunkId);
-  return chunk?.embedding || null;
+  return result[0];
 };
 
 // Check if chunks have embeddings
@@ -90,32 +72,18 @@ const chunksHaveEmbeddings = async (documentId) => {
 // Regenerate missing embeddings
 const regenerateMissingEmbeddings = async () => {
   const chunks = await Chunk.find({ embedding: null });
-  
   if (chunks.length === 0) {
     console.log('✅ All chunks have embeddings');
     return;
   }
-
   console.log(`🔄 Regenerating embeddings for ${chunks.length} chunks`);
   await generateAndStoreEmbeddings(chunks);
 };
 
-// Generate chat response using unified AI service
-const generateChatResponse = async (prompt, context) => {
-  return await aiService.generateChatResponse(prompt, context);
-};
-
-// Generate chat stream using unified AI service
-const generateChatStream = async (prompt, context) => {
-  return await aiService.generateChatStream(prompt, context);
-};
-
+// Export
 module.exports = {
   generateAndStoreEmbeddings,
   generateEmbeddingForText,
-  getChunkEmbedding,
   chunksHaveEmbeddings,
   regenerateMissingEmbeddings,
-  generateChatResponse,
-  generateChatStream,
 };

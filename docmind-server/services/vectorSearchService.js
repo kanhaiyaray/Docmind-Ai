@@ -1,7 +1,8 @@
-﻿const Chunk = require('../models/Chunk');
+﻿const mongoose = require('mongoose');
+const Chunk = require('../models/Chunk');
 const { generateEmbeddingForText } = require('./embeddingService');
 
-// MongoDB Vector Search configuration
+// Configuration - MUST MATCH YOUR ATLAS INDEX NAME
 const VECTOR_SEARCH_INDEX = 'default';
 
 // Perform vector search
@@ -9,26 +10,27 @@ const vectorSearch = async (query, documentId, limit = 5) => {
   try {
     console.log(`🔍 Vector search: query="${query}", documentId=${documentId}`);
     
-    // Generate embedding for query
+    // 1. Generate embedding for query using your service
     const queryEmbedding = await generateEmbeddingForText(query);
-    if (!queryEmbedding) {
+    if (!queryEmbedding || !Array.isArray(queryEmbedding)) {
       throw new Error('Failed to generate query embedding');
     }
 
     // Build match conditions
     const matchConditions = {};
     if (documentId) {
-      matchConditions.documentId = documentId;
+      // IMPORTANT: Cast string to ObjectId for the Atlas filter
+      matchConditions.documentId = new mongoose.Types.ObjectId(documentId);
     }
 
     console.log(`📊 Match conditions:`, matchConditions);
 
-    // Try vector search first
+    // 2. Use Atlas Vector Search
     try {
       const results = await Chunk.aggregate([
         {
           $vectorSearch: {
-            index: VECTOR_SEARCH_INDEX,
+            index: VECTOR_SEARCH_INDEX, // 'default'
             path: 'embedding',
             queryVector: queryEmbedding,
             numCandidates: 100,
@@ -53,10 +55,12 @@ const vectorSearch = async (query, documentId, limit = 5) => {
         return results;
       }
     } catch (vectorError) {
-      console.log('⚠️ Vector search failed, falling back to text search:', vectorError.message);
+      // If the Atlas index isn't found, log clearly and fall back
+      console.error('⚠️ Vector search failed (Check Atlas Index Name):', vectorError.message);
+      console.log('Falling back to text search...');
     }
 
-    // Fallback to text search
+    // 3. Fallback to text search
     return await fallbackSearch(query, documentId, limit);
   } catch (error) {
     console.error('Vector search error:', error);
@@ -64,7 +68,7 @@ const vectorSearch = async (query, documentId, limit = 5) => {
   }
 };
 
-// Fallback text search
+// Fallback text search (Regex - for local development)
 const fallbackSearch = async (query, documentId, limit = 5) => {
   try {
     console.log(`📝 Fallback text search: query="${query}"`);
@@ -128,7 +132,7 @@ const getSimilarChunks = async (chunkId, limit = 5) => {
           numCandidates: 100,
           limit: limit + 1,
           filter: {
-            documentId: chunk.documentId,
+            documentId: new mongoose.Types.ObjectId(chunk.documentId),
             _id: { $ne: chunk._id },
           },
         },

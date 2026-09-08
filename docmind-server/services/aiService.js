@@ -1,5 +1,5 @@
 ﻿const { generateGroqResponse, generateGroqStream } = require('./groqService');
-const { generateEmbedding, generateBatchEmbeddings } = require('../config/groq');
+const embeddingClient = require('./embeddingClient');
 
 // AI Service - Groq only
 class AIService {
@@ -19,10 +19,11 @@ class AIService {
     return await generateGroqStream(question, context);
   }
 
-  // Generate embeddings
+  // Generate embeddings (single)
   async generateEmbedding(text) {
     try {
-      return await generateEmbedding(text);
+      const result = await embeddingClient.embed(text);
+      return Array.isArray(result) ? result[0] : result;
     } catch (error) {
       console.error('Embedding generation failed:', error.message);
       throw error;
@@ -32,7 +33,7 @@ class AIService {
   // Generate batch embeddings
   async generateBatchEmbeddings(texts) {
     try {
-      return await generateBatchEmbeddings(texts);
+      return await embeddingClient.embed(texts);
     } catch (error) {
       console.error('Batch embedding generation failed:', error.message);
       throw error;

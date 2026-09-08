@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
-import { FileText, Send, Upload, Check, X } from "lucide-react";
+import { FileText, Send, Upload, Check, X, Plus } from "lucide-react";
 import Loading from "../components/Loading";
 import { useErrorHandler } from "../hooks/useErrorHandler";
 
@@ -9,9 +9,7 @@ const Chat = () => {
   const { documentId } = useParams();
   const navigate = useNavigate();
   const [documents, setDocuments] = useState([]);
-  const [selectedDoc, setSelectedDoc] = useState(null);
-  const [selectedDocs, setSelectedDocs] = useState([]); // multi-select
-  const [multiMode, setMultiMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
@@ -25,10 +23,12 @@ const Chat = () => {
   }, []);
 
   useEffect(() => {
-    if (documentId) {
-      const doc = documents.find(d => d._id === documentId);
-      setSelectedDoc(doc);
-      if (doc) fetchConversationHistory(doc._id);
+    if (documentId && documents.length > 0) {
+      const exists = documents.some(d => d._id === documentId);
+      if (exists) {
+        setSelectedIds([documentId]);
+        fetchConversationHistory(documentId);
+      }
     }
   }, [documentId, documents]);
 
@@ -43,8 +43,9 @@ const Chat = () => {
       const docs = Array.isArray(response.data) ? response.data : response.data.documents || [];
       setDocuments(docs);
       if (!documentId && docs.length > 0) {
-        const first = docs.find(d => d.status === "completed") || docs[0];
-        if (first) navigate(`/chat/${first._id}`);
+        // Optionally auto‑select first completed doc – uncomment if desired
+        // const first = docs.find(d => d.status === "completed") || docs[0];
+        // if (first) navigate(`/chat/${first._id}`);
       }
     } catch (error) {
       handleError(error, "Failed to load documents");
@@ -65,39 +66,37 @@ const Chat = () => {
     }
   };
 
-  const toggleMultiSelect = (doc) => {
-    if (doc.status !== "completed") return;
-    setSelectedDocs((prev) => {
-      const exists = prev.some(d => d._id === doc._id);
+  const toggleSelect = (docId) => {
+    setSelectedIds(prev => {
+      const exists = prev.includes(docId);
       if (exists) {
-        return prev.filter(d => d._id !== doc._id);
+        return prev.filter(id => id !== docId);
       } else {
-        return [...prev, doc];
+        return [...prev, docId];
       }
     });
-    // If we select a single document, switch to single mode and navigate
-    if (!multiMode && selectedDocs.length === 0) {
-      setSelectedDoc(doc);
-      navigate(`/chat/${doc._id}`);
-      fetchConversationHistory(doc._id);
-    }
+    setMessages([]); // clear conversation when selection changes
   };
 
   const sendMessage = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
 
-    // Determine mode: multi if >1 selected, else single
-    const useMulti = multiMode && selectedDocs.length > 1;
-    const docIds = useMulti ? selectedDocs.map(d => d._id) : [selectedDoc?._id];
-    const targetDoc = useMulti ? selectedDocs[0] : selectedDoc;
-
-    if (!targetDoc || targetDoc.status !== "completed") {
-      handleError(new Error("Document not ready"), "Document not ready");
+    if (selectedIds.length === 0) {
+      handleError(new Error("No document selected"), "Please select at least one document");
       return;
     }
 
-    // Optimistic user message
+    const targetDocs = documents.filter(d => selectedIds.includes(d._id));
+    const allReady = targetDocs.every(d => d.status === "completed");
+    if (!allReady) {
+      handleError(new Error("Some documents are not ready"), "Please wait for all selected documents to finish processing");
+      return;
+    }
+
+    const useMulti = targetDocs.length > 1;
+    const docIds = targetDocs.map(d => d._id);
+
     const tempId = Date.now();
     const userMsg = { role: "user", content: trimmed, _temp: true, id: tempId };
     setMessages(prev => [...prev, userMsg]);
@@ -115,7 +114,7 @@ const Chat = () => {
       } else {
         response = await api.post("/chat", {
           question: trimmed,
-          documentId: selectedDoc._id,
+          documentId: docIds[0],
         });
       }
       setMessages(prev => {
@@ -146,97 +145,111 @@ const Chat = () => {
     }
   };
 
+  const handleNewChat = () => {
+    setSelectedIds([]);
+    setMessages([]);
+    setInput("");
+    navigate("/chat");
+  };
+
+  const clearAll = () => {
+    setSelectedIds([]);
+    setMessages([]);
+  };
+
   if (loading) return <Loading fullPage />;
-
-  if (documents.length === 0) {
-    return (
-      <div className="chat-container">
-        <div className="chat-main" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f9fc" }}>
-          <div style={{ textAlign: "center", maxWidth: "400px", padding: "40px" }}>
-            <div style={{ fontSize: "64px", marginBottom: "20px" }}>📄</div>
-            <h2 style={{ fontSize: "24px", fontWeight: 600, color: "#1a1a2e", marginBottom: "8px" }}>No Documents Available</h2>
-            <p style={{ color: "#a0a7b5", marginBottom: "24px" }}>Upload a PDF to start chatting.</p>
-            <button onClick={() => navigate("/documents")} className="btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-              <Upload className="h-4 w-4" /> Upload
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const completedDocs = documents.filter(d => d.status === "completed");
 
   return (
     <div className="chat-container">
+      {/* Sidebar */}
       <div className="chat-sidebar">
         <div className="chat-sidebar-title">Your Documents</div>
-        <div className="flex items-center gap-2 mb-2">
-          <button
-            onClick={() => setMultiMode(!multiMode)}
-            className={`text-xs px-2 py-1 rounded ${
-              multiMode ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600"
-            }`}
-          >
-            {multiMode ? "Multi-select ON" : "Multi-select OFF"}
-          </button>
-          {multiMode && (
-            <span className="text-xs text-gray-500">{selectedDocs.length} selected</span>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-medium text-gray-500">
+            {selectedIds.length} selected
+          </span>
+          <div className="flex gap-2">
+            {selectedIds.length > 0 && (
+              <button
+                onClick={clearAll}
+                className="text-xs text-red-500 hover:text-red-700"
+              >
+                Clear all
+              </button>
+            )}
+            <button
+              onClick={handleNewChat}
+              className="text-xs text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1"
+            >
+              <Plus className="h-3 w-3" /> New Chat
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2 max-h-[calc(100vh-180px)] overflow-y-auto">
+          {documents.map((doc) => {
+            const isSelected = selectedIds.includes(doc._id);
+            const isReady = doc.status === "completed";
+            return (
+              <div
+                key={doc._id}
+                onClick={() => isReady && toggleSelect(doc._id)}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-full border-2 border-dotted cursor-pointer transition-all
+                  ${isReady ? "hover:shadow-md" : "opacity-50 cursor-not-allowed"}
+                  ${isSelected 
+                    ? "border-purple-500 bg-purple-50 shadow-sm" 
+                    : "border-gray-300 bg-white hover:border-gray-400"}
+                `}
+                title={!isReady ? "Document still processing" : ""}
+              >
+                <FileText className={`h-4 w-4 flex-shrink-0 ${isSelected ? "text-purple-600" : "text-gray-400"}`} />
+                <span className="text-sm font-medium truncate flex-1">
+                  {doc.title || "Untitled"}
+                </span>
+                <span className="text-xs text-gray-400 flex-shrink-0">
+                  {doc.pageCount || 0}p
+                </span>
+                {isSelected && <Check className="h-4 w-4 text-purple-600 flex-shrink-0" />}
+                {!isReady && <span className="text-xs text-gray-400 flex-shrink-0">⏳</span>}
+              </div>
+            );
+          })}
+          {documents.length === 0 && (
+            <div className="text-center text-gray-400 text-sm mt-8">
+              No documents uploaded yet.
+              <button
+                onClick={() => navigate("/documents")}
+                className="block mx-auto mt-2 text-purple-600 hover:underline"
+              >
+                Upload a PDF
+              </button>
+            </div>
           )}
         </div>
-        {documents.map((doc) => {
-          const isSelected = selectedDocs.some(d => d._id === doc._id);
-          const isActive = selectedDoc?._id === doc._id && !multiMode;
-          return (
-            <div
-              key={doc._id}
-              className={`chat-doc-item ${isActive ? "active" : ""}`}
-              onClick={() => toggleMultiSelect(doc)}
-              style={{
-                opacity: doc.status === "completed" ? 1 : 0.5,
-                cursor: doc.status === "completed" ? "pointer" : "not-allowed",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              {multiMode && doc.status === "completed" && (
-                <span>{isSelected ? <Check className="h-4 w-4 text-purple-600" /> : <X className="h-4 w-4 text-gray-300" />}</span>
-              )}
-              <FileText className="h-4 w-4" />
-              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {doc.title || "Untitled"}
-              </span>
-              <span style={{ fontSize: "10px", color: "#a0a7b5" }}>
-                {doc.status === "completed" ? "✅" : "⏳"}
-              </span>
-            </div>
-          );
-        })}
       </div>
 
+      {/* Chat area */}
       <div className="chat-main">
         <div className="chat-messages">
           {messages.length === 0 ? (
             <div className="chat-welcome">
-              <div className="chat-welcome-icon">✨</div>
+              <div className="chat-welcome-icon">💬</div>
               <div className="chat-welcome-title">
-                {multiMode && selectedDocs.length > 1
-                  ? `Chat with ${selectedDocs.length} documents`
-                  : selectedDoc
-                  ? `Ask about "${selectedDoc.title}"`
-                  : "Select a document"}
+                {selectedIds.length === 0
+                  ? "Select one or more documents from the sidebar"
+                  : selectedIds.length === 1
+                  ? `Chat with "${documents.find(d => d._id === selectedIds[0])?.title || "document"}"`
+                  : `Chat with ${selectedIds.length} documents`}
               </div>
               <div className="chat-welcome-sub">
-                {multiMode && selectedDocs.length > 1
-                  ? "Your question will be answered using all selected documents."
-                  : selectedDoc
-                  ? "Ask anything about your PDF"
-                  : completedDocs.length
-                  ? "Choose a document from the sidebar"
-                  : "Upload a document to get started"}
+                {selectedIds.length === 0
+                  ? "Choose documents to start asking questions"
+                  : selectedIds.length === 1
+                  ? "Ask anything about this PDF"
+                  : "Your question will be answered using all selected documents"}
               </div>
-              {selectedDoc && (
+              {selectedIds.length > 0 && (
                 <div className="chat-suggestions">
                   <button className="chat-suggestion" onClick={() => setInput("Summarize this document")}>
                     📝 Summarize
@@ -298,30 +311,21 @@ const Chat = () => {
             type="text"
             className="chat-input"
             placeholder={
-              multiMode && selectedDocs.length > 1
-                ? `Ask a question about ${selectedDocs.length} documents...`
-                : selectedDoc
+              selectedIds.length === 0
+                ? "Select a document first..."
+                : selectedIds.length === 1
                 ? "Ask a question..."
-                : "Select a document first..."
+                : `Ask a question about ${selectedIds.length} documents...`
             }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            disabled={
-              (!selectedDoc && !(multiMode && selectedDocs.length > 0)) ||
-              sending ||
-              (selectedDoc && selectedDoc.status !== "completed")
-            }
+            disabled={selectedIds.length === 0 || sending}
           />
           <button
             className="chat-send-btn"
             onClick={sendMessage}
-            disabled={
-              !input.trim() ||
-              sending ||
-              (!selectedDoc && !(multiMode && selectedDocs.length > 0)) ||
-              (selectedDoc && selectedDoc.status !== "completed")
-            }
+            disabled={!input.trim() || selectedIds.length === 0 || sending}
           >
             <Send className="h-4 w-4" />
           </button>

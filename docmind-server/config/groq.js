@@ -1,4 +1,5 @@
-﻿const Groq = require('groq-sdk');
+﻿// docmind-server/config/groq.js
+const Groq = require('groq-sdk');
 
 let groqClient = null;
 
@@ -9,39 +10,6 @@ const getGroqClient = () => {
     });
   }
   return groqClient;
-};
-
-// Generate embedding for a single text
-const generateEmbedding = async (text) => {
-  try {
-    // Simple embedding fallback - convert text to vector
-    const words = text.split(/\s+/).slice(0, 100);
-    const embedding = [];
-    for (let i = 0; i < 768; i++) {
-      let value = 0;
-      for (const word of words) {
-        value += (word.charCodeAt(i % word.length) || 0) / 255;
-      }
-      embedding.push(value / (words.length || 1));
-    }
-    return embedding;
-  } catch (error) {
-    console.error('Error generating embedding:', error);
-    throw error;
-  }
-};
-
-// Generate batch embeddings
-const generateBatchEmbeddings = async (texts) => {
-  try {
-    const embeddings = await Promise.all(
-      texts.map(text => generateEmbedding(text))
-    );
-    return embeddings;
-  } catch (error) {
-    console.error('Error generating batch embeddings:', error);
-    throw error;
-  }
 };
 
 // Generate chat response using Groq
@@ -104,8 +72,6 @@ const getGroqClientInstance = () => {
 };
 
 module.exports = {
-  generateEmbedding,
-  generateBatchEmbeddings,
   generateChatResponse,
   getGroqClient: getGroqClientInstance,
 };
