@@ -142,7 +142,6 @@ const Quiz = () => {
         </div>
       </div>
 
-      {/* Rest of the component (questions display, submission, results) – unchanged */}
       {questions.length > 0 && !submitted && (
         <div className="space-y-6">
           {questions.map((q, idx) => (
@@ -222,11 +221,15 @@ const Quiz = () => {
                       <p className="text-sm text-green-600 dark:text-green-400">Correct answer: <span className="font-medium">{correctAnswer}</span></p>
                     </div>
                   )}
-                  <div className="mt-2 text-sm">
+                  <div className="mt-2 text-sm flex items-center gap-1">
                     {isCorrect ? (
-                      <span className="text-green-600 dark:text-green-400">✅ Correct!</span>
+                      <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                        <CheckCircle className="h-4 w-4" /> Correct!
+                      </span>
                     ) : (
-                      <span className="text-red-600 dark:text-red-400">❌ Incorrect. Correct answer: <strong>{correctAnswer}</strong></span>
+                      <span className="text-red-600 dark:text-red-400 flex items-center gap-1">
+                        <XCircle className="h-4 w-4" /> Incorrect. Correct answer: <strong>{correctAnswer}</strong>
+                      </span>
                     )}
                   </div>
                 </div>

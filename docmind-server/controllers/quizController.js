@@ -58,6 +58,7 @@ exports.generateQuiz = async (req, res) => {
         "Generate multiple-choice questions with exactly 4 options (A, B, C, D).";
     }
 
+    // ===== UPDATED PROMPT =====
     const prompt = `
 Based on the following document content, generate ${numQuestions} ${questionType} questions to test comprehension.
 Difficulty: ${difficultyDesc}
@@ -68,11 +69,15 @@ ${content}
 
 Return the questions as a JSON array. Each object must have:
 - "question": string
-- "options": array of strings (only for multiple-choice and true/false; for fill-in, omit this field or set to [])
-- "correctAnswer": string (for multiple-choice, the letter A-D; for true/false, "True" or "False"; for fill-in, the exact correct answer)
+- "options": array of strings (for multiple-choice and true/false; for fill-in, omit or set to [])
+- "correctAnswer": string
+  - For multiple-choice: the **exact text** of the correct option (not the letter)
+  - For true/false: "True" or "False"
+  - For fill-in: the exact correct answer text
 
 Return ONLY the JSON array, no extra text.
 `;
+    // ==========================
 
     const response = await generateOpenAIResponse(prompt);
     let questions;
