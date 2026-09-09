@@ -105,13 +105,14 @@ app.use((req, res, next) => {
 });
 
 // ============================================
-// CSRF PROTECTION
+// CSRF PROTECTION – CHANGED COOKIE OPTIONS
 // ============================================
+const isProduction = process.env.NODE_ENV === 'production';
 const csrfProtection = csrf({
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
   },
 });
 

@@ -35,21 +35,20 @@ const generateRefreshToken = async (userId, deviceInfo = {}) => {
 };
 
 const setAuthCookies = (res, token, refreshToken) => {
+  const isProduction = process.env.NODE_ENV === 'production';
   const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: 15 * 60 * 1000,
   };
   res.cookie('token', token, cookieOptions);
-
   res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    ...cookieOptions,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
+// --------------------------------------
 
 const clearAuthCookies = (res) => {
   res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
