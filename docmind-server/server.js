@@ -8,6 +8,9 @@ const csrf = require('csurf');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 
+// Suppress the Mongoose strictQuery warning
+mongoose.set('strictQuery', false);
+
 dotenv.config();
 
 const connectDB = require('./config/db');
@@ -80,7 +83,6 @@ const limiter = rateLimit({
     if (req.path === '/api/health') return true;
     return false;
   },
-  
 });
 
 app.use('/api', limiter);
@@ -168,7 +170,14 @@ app.use(errorMiddleware);
 // ============================================
 // START SERVER
 // ============================================
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000; // Default to 10000 for Render
+
+// Check if MONGO_URI is present before trying to connect
+if (!process.env.MONGO_URI) {
+  console.error('❌ FATAL ERROR: MONGO_URI is not set in the environment variables.');
+  console.error('   Please go to your Render Dashboard -> Environment tab and add MONGO_URI.');
+  process.exit(1);
+}
 
 connectDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
