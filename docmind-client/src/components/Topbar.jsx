@@ -11,6 +11,14 @@ const Topbar = () => {
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef(null);
 
+  // Helper: time-based greeting
+  const getTimeGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
   // Sync search term with URL param when on /documents
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -58,7 +66,7 @@ const Topbar = () => {
           <Menu className="h-5 w-5" />
         </button>
         <div className="topbar-greeting">
-          Welcome back, <span>{user?.name?.split(' ')[0] || 'User'}</span> 👋
+          {getTimeGreeting()}, <span>{user?.name?.split(' ')[0] || 'User'}</span> 👋
         </div>
       </div>
 

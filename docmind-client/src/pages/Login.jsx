@@ -1,7 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'; 
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -16,7 +16,6 @@ const Login = () => {
     e.preventDefault();
     setLocalError('');
     
-    // Basic validation
     if (!email.trim()) {
       setLocalError('Please enter your email');
       return;
@@ -27,7 +26,6 @@ const Login = () => {
     }
     
     setLoading(true);
-    
     const result = await login(email, password);
     setLoading(false);
     
@@ -48,7 +46,7 @@ const Login = () => {
         <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-8 shadow-lg">
           <div className="flex justify-center mb-8">
             <div className="bg-purple-600 rounded-xl p-3">
-              <LogIn className="h-8 w-8 text-white" />
+              <img src="/favicon.svg" alt="DocMind" className="h-8 w-8" />
             </div>
           </div>
 
@@ -58,7 +56,6 @@ const Login = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Error Display */}
             {(localError || error) && (
               <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
                 <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />

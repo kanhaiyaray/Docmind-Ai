@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react'; 
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -51,7 +51,6 @@ const Register = () => {
       return;
     }
 
-    // Check if all password requirements are met
     const allValid = Object.values(passwordChecks).every(v => v === true);
     if (!allValid) {
       setPasswordError('Please meet all password requirements');
@@ -73,7 +72,7 @@ const Register = () => {
         <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-8 shadow-lg">
           <div className="flex justify-center mb-8">
             <div className="bg-purple-600 rounded-xl p-3">
-              <UserPlus className="h-8 w-8 text-white" />
+              <img src="/favicon.svg" alt="DocMind" className="h-8 w-8" />
             </div>
           </div>
 
