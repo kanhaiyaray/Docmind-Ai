@@ -28,18 +28,34 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          ui: ['lucide-react', 'react-markdown'],
+        // ✅ Changed manualChunks to a function
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            // Group React and React Router into 'vendor'
+            if (
+              id.includes('react') ||
+              id.includes('react-dom') ||
+              id.includes('react-router-dom')
+            ) {
+              return 'vendor'
+            }
+            // Group UI libraries into 'ui'
+            if (
+              id.includes('lucide-react') ||
+              id.includes('react-markdown')
+            ) {
+              return 'ui'
+            }
+            // Everything else from node_modules goes to 'vendor'
+            return 'vendor'
+          }
         },
       },
     },
   },
-  // Remove deprecated options to fix warnings
   resolve: {
     extensions: ['.js', '.jsx', '.json'],
   },
-  // Fix for jsx warning
   esbuild: {
     jsx: 'automatic',
   },
