@@ -23,9 +23,7 @@
         "multer": "^2.3.0",
         "openai": "^7.10.0",
         "pdf-parse": "^2.4.5",
-        "pdf-poppler": "^0.2.3",
-        "resend": "^6.26.0",
-        "tesseract.js": "^7.0.0"
+        "resend": "^6.26.0"
     },
     "devDependencies": {
         "nodemon": "^2.0.20"

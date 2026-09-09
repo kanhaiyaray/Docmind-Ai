@@ -1,14 +1,10 @@
 ﻿const fs = require('fs');
-const fsPromises = fs.promises;
 const path = require('path');
 const pdf = require('pdf-parse');
-const pdfPoppler = require('pdf-poppler');
-const Tesseract = require('tesseract.js');
 
 // Helper: Convert PDF date format to valid Date
 const convertPDFDate = (pdfDate) => {
   if (!pdfDate) return null;
-  
   try {
     const match = pdfDate.match(/D:(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})([+-])(\d{2})'(\d{2})'/);
     if (match) {
@@ -24,7 +20,7 @@ const convertPDFDate = (pdfDate) => {
   }
 };
 
-// ---------- EXISTING: Extract text from PDF (pdf-parse) ----------
+// ---------- Main extraction (no OCR fallback) ----------
 const extractText = async (filePath) => {
   try {
     const dataBuffer = fs.readFileSync(filePath);
@@ -73,6 +69,16 @@ const extractText = async (filePath) => {
       }
     }
     
+    // ---------- REJECT image-based PDFs early ----------
+    const totalText = pages.map(p => p.text).join(' ');
+    if (totalText.trim().length < 100) {
+      throw new Error(
+        'This appears to be a scanned or image‑based PDF. ' +
+        'We only support text‑based PDFs with selectable text. ' +
+        'Please upload a document that contains actual text.'
+      );
+    }
+    
     return {
       pageCount: pages.length,
       pages: pages,
@@ -92,77 +98,7 @@ const extractText = async (filePath) => {
   }
 };
 
-// ---------- NEW: OCR fallback for image‑based PDFs ----------
-const extractTextWithOCR = async (filePath) => {
-  const tempDir = path.join(path.dirname(filePath), 'ocr_temp_' + Date.now());
-  await fsPromises.mkdir(tempDir, { recursive: true });
-
-  try {
-    // Convert PDF to images (one per page)
-    const opts = {
-      format: 'png',
-      out_dir: tempDir,
-      out_prefix: 'page',
-      page: null, // all pages
-    };
-    await pdfPoppler.convert(filePath, opts);
-
-    // Read generated image files
-    const files = await fsPromises.readdir(tempDir);
-    const imageFiles = files.filter(f => f.endsWith('.png')).sort();
-
-    if (imageFiles.length === 0) {
-      throw new Error('No images generated from PDF');
-    }
-
-    let fullText = '';
-    const pages = [];
-
-    // OCR each image
-    for (const imgFile of imageFiles) {
-      const imgPath = path.join(tempDir, imgFile);
-      const pageNum = parseInt(imgFile.replace('page-', '').replace('.png', ''));
-      const { data: { text } } = await Tesseract.recognize(imgPath, 'eng');
-      const cleanText = text.trim();
-      pages.push({
-        pageNumber: pageNum,
-        text: cleanText,
-      });
-      fullText += cleanText + '\n';
-    }
-
-    return {
-      pageCount: pages.length,
-      pages: pages,
-      totalChars: fullText.length,
-      metadata: {}, // OCR doesn't provide metadata
-    };
-  } finally {
-    // Clean up temporary directory
-    await fsPromises.rm(tempDir, { recursive: true, force: true });
-  }
-};
-
-// ---------- NEW: Smart extraction with fallback ----------
-const extractTextWithFallback = async (filePath) => {
-  try {
-    // Try pdf-parse first
-    const result = await extractText(filePath);
-    const totalText = result.pages.map(p => p.text).join(' ');
-    // If very little text, assume it's image‑based
-    if (totalText.trim().length < 100) {
-      console.log('⚠️ Low text extraction, attempting OCR...');
-      return await extractTextWithOCR(filePath);
-    }
-    return result;
-  } catch (error) {
-    console.error('PDF extraction failed, trying OCR:', error.message);
-    // On any error, fallback to OCR
-    return await extractTextWithOCR(filePath);
-  }
-};
-
-// ---------- Other existing functions (unchanged) ----------
+// ---------- Get metadata (unchanged) ----------
 const getMetadata = async (filePath) => {
   try {
     const dataBuffer = fs.readFileSync(filePath);
@@ -182,6 +118,7 @@ const getMetadata = async (filePath) => {
   }
 };
 
+// ---------- Validate PDF (unchanged) ----------
 const validatePDF = async (filePath) => {
   try {
     const dataBuffer = fs.readFileSync(filePath);
@@ -200,7 +137,7 @@ const validatePDF = async (filePath) => {
 };
 
 module.exports = {
-  extractText: extractTextWithFallback, 
+  extractText,          // now only uses pdf-parse and rejects image-based
   getMetadata,
   validatePDF,
 };
