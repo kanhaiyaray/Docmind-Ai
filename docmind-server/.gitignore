@@ -138,7 +138,6 @@ Desktop.ini
 docker-compose.override.yml
 .docker/
 docker/
-*.dockerignore
 
 # ============================================
 # TESTING

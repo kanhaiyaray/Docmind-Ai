@@ -1,18 +1,19 @@
-﻿FROM node:20-slim
-
-# Install required system packages for PDF processing and OCR
-RUN apt-get update && apt-get install -y \
-    poppler-utils \
-    tesseract-ocr \
-    && rm -rf /var/lib/apt/lists/*
+﻿FROM node:22-bookworm-slim
 
 WORKDIR /app
 
+# Copy package files first for better caching
 COPY package*.json ./
+
+# Clean install production dependencies
 RUN npm ci --only=production
 
 COPY . .
 
-EXPOSE 5000
+# Ensure the app binds to 0.0.0.0 (required by Render)
+ENV HOST=0.0.0.0
+ENV PORT=10000
 
-CMD ["npm", "start"]
+EXPOSE 10000
+
+CMD ["node", "server.js"]
