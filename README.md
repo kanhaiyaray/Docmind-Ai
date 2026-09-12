@@ -2,14 +2,14 @@
 
 # 🧠 DocMind AI ( RAG )
 
-
 **Enterprise-Grade Document Intelligence Platform**
 Transform static PDFs into conversational knowledge bases — grounded, cited, and hallucination-free.
 
-![Live Demo](https://img.shields.io/badge/%F0%9F%9A%80_Live_Demo-6c5ce7?style=for-the-badge&logo=vercel&logoColor=white)
-![Stars](https://img.shields.io/github/stars/kanhaiyaray/Docmind-Ai?style=for-the-badge&logo=github&color=gold)
-![Forks](https://img.shields.io/github/forks/kanhaiyaray/Docmind-Ai?style=for-the-badge&logo=github&color=blue)
-![License](https://img.shields.io/badge/License-MIT-00b894?style=for-the-badge)
+[![Live Demo](https://img.shields.io/badge/%F0%9F%9A%80_Live_Demo-6c5ce7?style=for-the-badge&logo=vercel&logoColor=white)](https://docmind-ai-opal.vercel.app)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-Repo-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/kanhaiyaray/Docmind-Ai)
+[![Stars](https://img.shields.io/github/stars/kanhaiyaray/Docmind-Ai?style=for-the-badge&logo=github&color=gold)](https://github.com/kanhaiyaray/Docmind-Ai/stargazers)
+[![Forks](https://img.shields.io/github/forks/kanhaiyaray/Docmind-Ai?style=for-the-badge&logo=github&color=blue)](https://github.com/kanhaiyaray/Docmind-Ai/network/members)
+[![License](https://img.shields.io/badge/License-MIT-00b894?style=for-the-badge)](https://github.com/kanhaiyaray/Docmind-Ai/blob/main/LICENSE)
 
 ![React](https://img.shields.io/badge/React-18.3-61DAFB?style=flat-square&logo=react&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8.2-646CFF?style=flat-square&logo=vite&logoColor=white)
@@ -18,6 +18,8 @@ Transform static PDFs into conversational knowledge bases — grounded, cited, a
 ![Express](https://img.shields.io/badge/Express-4.18-000000?style=flat-square&logo=express&logoColor=white)
 ![MongoDB Atlas](https://img.shields.io/badge/MongoDB_Atlas-47A248?style=flat-square&logo=mongodb&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat-square&logo=openai&logoColor=white)
+
+🔗 **[Live Demo](https://docmind-ai-opal.vercel.app)** · **[GitHub Repository](https://github.com/kanhaiyaray/Docmind-Ai)**
 
 [Overview](#-overview) · [Features](#-feature-highlights) · [Architecture](#%EF%B8%8F-system-architecture) · [Quick Start](#-quick-start) · [API](#-api-reference) · [Security](#-security-model) · [Roadmap](#%EF%B8%8F-roadmap)
 
@@ -683,7 +685,7 @@ docker run -p 10000:10000 --env-file .env docmind-server
 | Environment | Backend | Frontend |
 |---|---|---|
 | Development | `http://localhost:5000` | `http://localhost:5173` |
-| Production | `https://api.yourdomain.com` | `https://docmind-ai-opal.vercel.app` |
+| Production | `https://api.yourdomain.com` | [`https://docmind-ai-opal.vercel.app`](https://docmind-ai-opal.vercel.app/chat) |
 
 ## 🗺️ Roadmap
 
@@ -719,7 +721,7 @@ docker run -p 10000:10000 --env-file .env docmind-server
 </tr>
 </table>
 
-Track progress on the open issues →
+Track progress on the [open issues](https://github.com/kanhaiyaray/Docmind-Ai/issues) →
 
 ## ❓ FAQ
 
@@ -795,10 +797,10 @@ Distributed under the MIT License. See `LICENSE` for details.
 ⭐ If DocMind helped you, consider giving it a star!
 It takes 2 seconds and helps others discover the project.
 
-![Stars](https://img.shields.io/github/stars/kanhaiyaray/Docmind-Ai?style=social)
+[![Stars](https://img.shields.io/github/stars/kanhaiyaray/Docmind-Ai?style=social)](https://github.com/kanhaiyaray/Docmind-Ai/stargazers)
 
 Built with ❤️ by **Kanhaiya Ray**
 
-[⬆ Back to Top](#-docmind-ai) · [🐛 Report Bug](https://github.com/kanhaiyaray/Docmind-Ai/issues) · [✨ Request Feature](https://github.com/kanhaiyaray/Docmind-Ai/issues)
+[⬆ Back to Top](#-docmind-ai--rag-) · [🐛 Report Bug](https://github.com/kanhaiyaray/Docmind-Ai/issues) · [✨ Request Feature](https://github.com/kanhaiyaray/Docmind-Ai/issues) · [🚀 Live Demo](https://docmind-ai-opal.vercel.app/chat)
 
 </div>
