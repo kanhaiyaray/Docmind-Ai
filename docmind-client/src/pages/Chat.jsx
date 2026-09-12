@@ -1,7 +1,7 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
-import { FileText, Send, Upload, Check, X, Plus } from "lucide-react";
+import { FileText, Send, Check, Plus } from "lucide-react";
 import Loading from "../components/Loading";
 import { useErrorHandler } from "../hooks/useErrorHandler";
 
@@ -24,7 +24,7 @@ const Chat = () => {
 
   useEffect(() => {
     if (documentId && documents.length > 0) {
-      const exists = documents.some(d => d._id === documentId);
+      const exists = documents.some((d) => d._id === documentId);
       if (exists) {
         setSelectedIds([documentId]);
         fetchConversationHistory(documentId);
@@ -40,13 +40,10 @@ const Chat = () => {
     try {
       setLoading(true);
       const response = await api.get("/documents");
-      const docs = Array.isArray(response.data) ? response.data : response.data.documents || [];
+      const docs = Array.isArray(response.data)
+        ? response.data
+        : response.data.documents || [];
       setDocuments(docs);
-      if (!documentId && docs.length > 0) {
-        // Optionally auto‑select first completed doc – uncomment if desired
-        // const first = docs.find(d => d.status === "completed") || docs[0];
-        // if (first) navigate(`/chat/${first._id}`);
-      }
     } catch (error) {
       handleError(error, "Failed to load documents");
     } finally {
@@ -56,7 +53,9 @@ const Chat = () => {
 
   const fetchConversationHistory = async (docId) => {
     try {
-      const response = await api.get(`/chat/history?documentId=${docId}&limit=50`);
+      const response = await api.get(
+        `/chat/history?documentId=${docId}&limit=50`
+      );
       const convs = response.data.conversations || [];
       if (convs.length > 0) setMessages(convs[0].messages || []);
       else setMessages([]);
@@ -67,15 +66,12 @@ const Chat = () => {
   };
 
   const toggleSelect = (docId) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const exists = prev.includes(docId);
-      if (exists) {
-        return prev.filter(id => id !== docId);
-      } else {
-        return [...prev, docId];
-      }
+      if (exists) return prev.filter((id) => id !== docId);
+      return [...prev, docId];
     });
-    setMessages([]); // clear conversation when selection changes
+    setMessages([]);
   };
 
   const sendMessage = async () => {
@@ -83,23 +79,29 @@ const Chat = () => {
     if (!trimmed) return;
 
     if (selectedIds.length === 0) {
-      handleError(new Error("No document selected"), "Please select at least one document");
+      handleError(
+        new Error("No document selected"),
+        "Please select at least one document"
+      );
       return;
     }
 
-    const targetDocs = documents.filter(d => selectedIds.includes(d._id));
-    const allReady = targetDocs.every(d => d.status === "completed");
+    const targetDocs = documents.filter((d) => selectedIds.includes(d._id));
+    const allReady = targetDocs.every((d) => d.status === "completed");
     if (!allReady) {
-      handleError(new Error("Some documents are not ready"), "Please wait for all selected documents to finish processing");
+      handleError(
+        new Error("Some documents are not ready"),
+        "Please wait for all selected documents to finish processing"
+      );
       return;
     }
 
     const useMulti = targetDocs.length > 1;
-    const docIds = targetDocs.map(d => d._id);
+    const docIds = targetDocs.map((d) => d._id);
 
     const tempId = Date.now();
     const userMsg = { role: "user", content: trimmed, _temp: true, id: tempId };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setSending(true);
     if (inputRef.current) inputRef.current.focus();
@@ -117,8 +119,8 @@ const Chat = () => {
           documentId: docIds[0],
         });
       }
-      setMessages(prev => {
-        const filtered = prev.filter(m => !(m._temp && m.id === tempId));
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => !(m._temp && m.id === tempId));
         return [
           ...filtered,
           { role: "user", content: trimmed },
@@ -131,15 +133,15 @@ const Chat = () => {
       });
       handleSuccess("Response received");
     } catch (error) {
-      setMessages(prev => prev.filter(m => !(m._temp && m.id === tempId)));
+      setMessages((prev) => prev.filter((m) => !(m._temp && m.id === tempId)));
       handleError(error, "Failed to get response");
     } finally {
       setSending(false);
     }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       sendMessage();
     }
@@ -161,7 +163,6 @@ const Chat = () => {
 
   return (
     <div className="chat-container">
-      {/* Sidebar */}
       <div className="chat-sidebar">
         <div className="chat-sidebar-title">Your Documents</div>
         <div className="flex items-center justify-between mb-3">
@@ -197,21 +198,31 @@ const Chat = () => {
                 className={`
                   flex items-center gap-2 px-4 py-2 rounded-full border-2 border-dotted cursor-pointer transition-all
                   ${isReady ? "hover:shadow-md" : "opacity-50 cursor-not-allowed"}
-                  ${isSelected 
-                    ? "border-purple-500 bg-purple-50 shadow-sm" 
-                    : "border-gray-300 bg-white hover:border-gray-400"}
+                  ${
+                    isSelected
+                      ? "border-purple-500 bg-purple-50 shadow-sm"
+                      : "border-gray-300 bg-white hover:border-gray-400"
+                  }
                 `}
                 title={!isReady ? "Document still processing" : ""}
               >
-                <FileText className={`h-4 w-4 flex-shrink-0 ${isSelected ? "text-purple-600" : "text-gray-400"}`} />
+                <FileText
+                  className={`h-4 w-4 flex-shrink-0 ${
+                    isSelected ? "text-purple-600" : "text-gray-400"
+                  }`}
+                />
                 <span className="text-sm font-medium truncate flex-1">
                   {doc.title || "Untitled"}
                 </span>
                 <span className="text-xs text-gray-400 flex-shrink-0">
                   {doc.pageCount || 0}p
                 </span>
-                {isSelected && <Check className="h-4 w-4 text-purple-600 flex-shrink-0" />}
-                {!isReady && <span className="text-xs text-gray-400 flex-shrink-0">⏳</span>}
+                {isSelected && (
+                  <Check className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                )}
+                {!isReady && (
+                  <span className="text-xs text-gray-400 flex-shrink-0">⏳</span>
+                )}
               </div>
             );
           })}
@@ -229,7 +240,6 @@ const Chat = () => {
         </div>
       </div>
 
-      {/* Chat area */}
       <div className="chat-main">
         <div className="chat-messages">
           {messages.length === 0 ? (
@@ -239,7 +249,10 @@ const Chat = () => {
                 {selectedIds.length === 0
                   ? "Select one or more documents from the sidebar"
                   : selectedIds.length === 1
-                  ? `Chat with "${documents.find(d => d._id === selectedIds[0])?.title || "document"}"`
+                  ? `Chat with "${
+                      documents.find((d) => d._id === selectedIds[0])?.title ||
+                      "document"
+                    }"`
                   : `Chat with ${selectedIds.length} documents`}
               </div>
               <div className="chat-welcome-sub">
@@ -251,13 +264,22 @@ const Chat = () => {
               </div>
               {selectedIds.length > 0 && (
                 <div className="chat-suggestions">
-                  <button className="chat-suggestion" onClick={() => setInput("Summarize this document")}>
+                  <button
+                    className="chat-suggestion"
+                    onClick={() => setInput("Summarize this document")}
+                  >
                     📝 Summarize
                   </button>
-                  <button className="chat-suggestion" onClick={() => setInput("What are the key concepts?")}>
+                  <button
+                    className="chat-suggestion"
+                    onClick={() => setInput("What are the key concepts?")}
+                  >
                     🔑 Key concepts
                   </button>
-                  <button className="chat-suggestion" onClick={() => setInput("What are the main findings?")}>
+                  <button
+                    className="chat-suggestion"
+                    onClick={() => setInput("What are the main findings?")}
+                  >
                     📊 Main findings
                   </button>
                 </div>
@@ -275,28 +297,68 @@ const Chat = () => {
                       maxWidth: "75%",
                       padding: "12px 18px",
                       borderRadius: "16px",
-                      background: isUser ? "linear-gradient(135deg, #6c5ce7, #a29bfe)" : "white",
+                      background: isUser
+                        ? "linear-gradient(135deg, #6c5ce7, #a29bfe)"
+                        : "white",
                       color: isUser ? "white" : "#1a1a2e",
                       boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
                       border: isUser ? "none" : "1px solid #eef0f3",
                       opacity: msg._temp ? 0.7 : 1,
                     }}
                   >
-                    <div style={{ fontSize: "14px", whiteSpace: "pre-wrap" }}>{msg.content}</div>
+                    <div style={{ fontSize: "14px", whiteSpace: "pre-wrap" }}>
+                      {msg.content}
+                    </div>
                     {msg.sources?.length > 0 && (
-                      <div style={{ marginTop: "8px", fontSize: "12px", color: "#a0a7b5" }}>
-                        📄 Sources: {msg.sources.map(s => `Page ${s.page}`).join(", ")}
+                      <div
+                        style={{
+                          marginTop: "8px",
+                          fontSize: "12px",
+                          color: "#a0a7b5",
+                        }}
+                      >
+                        📄 Sources:{" "}
+                        {msg.sources.map((s) => `Page ${s.page}`).join(", ")}
                       </div>
                     )}
                   </div>
                 );
               })}
               {sending && (
-                <div style={{ alignSelf: "flex-start", padding: "12px 18px", background: "white", borderRadius: "16px", border: "1px solid #eef0f3" }}>
+                <div
+                  style={{
+                    alignSelf: "flex-start",
+                    padding: "12px 18px",
+                    background: "white",
+                    borderRadius: "16px",
+                    border: "1px solid #eef0f3",
+                  }}
+                >
                   <div style={{ display: "flex", gap: "4px" }}>
-                    <span style={{ animation: "pulse 1.4s infinite", display: "inline-block" }}>●</span>
-                    <span style={{ animation: "pulse 1.4s infinite 0.2s", display: "inline-block" }}>●</span>
-                    <span style={{ animation: "pulse 1.4s infinite 0.4s", display: "inline-block" }}>●</span>
+                    <span
+                      style={{
+                        animation: "pulse 1.4s infinite",
+                        display: "inline-block",
+                      }}
+                    >
+                      ●
+                    </span>
+                    <span
+                      style={{
+                        animation: "pulse 1.4s infinite 0.2s",
+                        display: "inline-block",
+                      }}
+                    >
+                      ●
+                    </span>
+                    <span
+                      style={{
+                        animation: "pulse 1.4s infinite 0.4s",
+                        display: "inline-block",
+                      }}
+                    >
+                      ●
+                    </span>
                   </div>
                 </div>
               )}
@@ -319,7 +381,7 @@ const Chat = () => {
             }
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             disabled={selectedIds.length === 0 || sending}
           />
           <button

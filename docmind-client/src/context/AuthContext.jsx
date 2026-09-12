@@ -1,7 +1,9 @@
-﻿import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import api, { clearCsrfToken, refreshCsrfToken } from '../services/api';
 
 const AuthContext = createContext();
+
+const isDev = import.meta.env.DEV;
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -19,8 +21,12 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
-      const parsed = JSON.parse(savedUser);
-      setUser(parsed);
+      try {
+        const parsed = JSON.parse(savedUser);
+        setUser(parsed);
+      } catch {
+        localStorage.removeItem('user');
+      }
       verifyToken();
     } else {
       setLoading(false);
@@ -32,18 +38,22 @@ export const AuthProvider = ({ children }) => {
       const response = await api.get('/auth/me');
       setUser(response.data.user);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-    } catch (error) {
-      console.error('Token verification failed:', error);
+    } catch (err) {
+      if (isDev) console.error('Token verification failed:', err);
       localStorage.removeItem('user');
       setUser(null);
-      if (error.response?.status === 401 && error.response?.data?.code === 'TOKEN_EXPIRED') {
+
+      if (
+        err.response?.status === 401 &&
+        err.response?.data?.code === 'TOKEN_EXPIRED'
+      ) {
         try {
           await api.post('/auth/refresh', {});
           const retryResponse = await api.get('/auth/me');
           setUser(retryResponse.data.user);
           localStorage.setItem('user', JSON.stringify(retryResponse.data.user));
         } catch (refreshError) {
-          console.error('Refresh failed:', refreshError);
+          if (isDev) console.error('Refresh failed:', refreshError);
           setUser(null);
         }
       }
@@ -55,39 +65,51 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setError(null);
-      console.log('🔐 Attempting login for:', email);
-      
-      const response = await api.post('/auth/login', { 
-        email: email.trim().toLowerCase(), 
-        password 
+      if (isDev) console.log('🔐 Attempting login');
+
+      const response = await api.post('/auth/login', {
+        email: email.trim().toLowerCase(),
+        password,
       });
-      
-      console.log('✅ Login response:', response.data);
-      
-      const { user } = response.data;
-      
-      localStorage.setItem('user', JSON.stringify(user));
-      setUser(user);
-      
+
+      if (isDev) console.log('✅ Login successful');
+
+      const { user: loggedIn } = response.data;
+
+      localStorage.setItem('user', JSON.stringify(loggedIn));
+      setUser(loggedIn);
+
       await refreshCsrfToken();
-      
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       return { success: true };
-    } catch (error) {
-      console.error('❌ Login error:', error);
-      
+    } catch (err) {
       let errorMessage = 'Login failed. Please try again.';
-      
-      if (error.response) {
-        console.log('📝 Server response:', error.response.data);
-        errorMessage = error.response.data?.message || 
-                      error.response.data?.error || 
-                      'Invalid email or password';
-      } else if (error.request) {
-        errorMessage = 'No response from server. Please check your connection.';
+
+      if (err.response) {
+        const code = err.response.data?.code;
+        errorMessage =
+          err.response.data?.message ||
+          err.response.data?.error ||
+          'Invalid email or password';
+
+        if (code === 'ACCOUNT_LOCKED') {
+          errorMessage =
+            err.response.data.message ||
+            'Account locked due to too many failed attempts. Try again later.';
+        }
+        if (code === 'EMAIL_NOT_VERIFIED') {
+          errorMessage =
+            err.response.data.message ||
+            'Please verify your email before logging in.';
+        }
+
+        if (isDev) console.log('📝 Login error:', errorMessage);
+      } else if (err.request) {
+        errorMessage =
+          'No response from server. Please check your connection.';
       }
-      
+
       setError(errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -96,21 +118,22 @@ export const AuthProvider = ({ children }) => {
   const register = async (name, email, password) => {
     try {
       setError(null);
-      const response = await api.post('/auth/register', { 
-        name: name.trim(), 
-        email: email.trim().toLowerCase(), 
-        password 
+      const response = await api.post('/auth/register', {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
       });
-      const { user } = response.data;
-      
-      localStorage.setItem('user', JSON.stringify(user));
-      setUser(user);
-      
+      const { user: newUser } = response.data;
+
+      localStorage.setItem('user', JSON.stringify(newUser));
+      setUser(newUser);
+
       await refreshCsrfToken();
-      
+
       return { success: true };
-    } catch (error) {
-      let errorMessage = error.response?.data?.message || 'Registration failed';
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || 'Registration failed';
       setError(errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -119,8 +142,8 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await api.post('/auth/logout');
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch (err) {
+      if (isDev) console.error('Logout error:', err);
     } finally {
       localStorage.removeItem('user');
       setUser(null);
@@ -131,8 +154,8 @@ export const AuthProvider = ({ children }) => {
   const logoutAll = async () => {
     try {
       await api.post('/auth/logout-all');
-    } catch (error) {
-      console.error('Logout all error:', error);
+    } catch (err) {
+      if (isDev) console.error('Logout all error:', err);
     } finally {
       localStorage.removeItem('user');
       setUser(null);
@@ -157,9 +180,5 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
