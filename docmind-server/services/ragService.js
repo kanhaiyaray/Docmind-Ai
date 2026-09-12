@@ -1,114 +1,111 @@
-﻿const { searchDocument } = require('./vectorSearchService');
+const { searchDocument } = require('./vectorSearchService');
 const aiService = require('./aiService');
 const Document = require('../models/Document');
+const Chunk = require('../models/Chunk');
 
-// Process RAG query – now passes raw context to aiService
+// Adaptive strategy based on document size
+const SMALL_DOC_CHUNKS = 30;      // send all chunks
+const MEDIUM_DOC_CHUNKS = 200;    // vector top-15
+const LARGE_DOC_TOP_K = 15;
+const MAX_CONTEXT_CHARS = 60000;  // hard cap so we never blow the token budget
+
+const buildContext = (chunks) => {
+  let out = '';
+  const total = chunks.length;
+  for (let i = 0; i < total; i++) {
+    const c = chunks[i];
+    const block =
+      `===== [POSITION ${i + 1} of ${total} | Page ${c.pageNumber || 1}] =====\n` +
+      `${c.content || c.text || ''}\n\n`;
+    if (out.length + block.length > MAX_CONTEXT_CHARS) {
+      out += `\n[NOTE: document context truncated at ${i} of ${total} chunks due to size]\n`;
+      break;
+    }
+    out += block;
+  }
+  return out;
+};
+
 const processRAGQuery = async (question, documentId, userId) => {
   try {
-    console.log(`🔍 Processing RAG query for document ${documentId}`);
-
-    // Get document info
-    const document = await Document.findOne({
-      _id: documentId,
-      userId: userId,
-    });
-
-    if (!document) {
-      throw new Error('Document not found or access denied');
-    }
-
+    const document = await Document.findOne({ _id: documentId, userId });
+    if (!document) throw new Error('Document not found or access denied');
     if (document.status !== 'completed') {
-      throw new Error(`Document is still ${document.status}. Please wait for processing to complete.`);
+      throw new Error(`Document is still ${document.status}. Please wait.`);
     }
 
-    // Search for relevant chunks
-    console.log(`🔍 Searching for relevant chunks...`);
+    const totalChunks = await Chunk.countDocuments({ documentId });
     let relevantChunks;
-    try {
-      relevantChunks = await searchDocument(question, documentId, 5);
-    } catch (searchError) {
-      console.error('❌ Search error:', searchError);
-      throw new Error(`Search failed: ${searchError.message}`);
-    }
 
-    console.log(`📄 Found ${relevantChunks ? relevantChunks.length : 0} relevant chunks`);
+    if (totalChunks <= SMALL_DOC_CHUNKS) {
+      console.log(`📄 Small doc (${totalChunks} chunks) -> ALL chunks`);
+      relevantChunks = await Chunk.find({ documentId }).sort({ chunkIndex: 1 }).limit(100);
+    } else if (totalChunks <= MEDIUM_DOC_CHUNKS) {
+      console.log(`📄 Medium doc (${totalChunks} chunks) -> vector top-${LARGE_DOC_TOP_K}`);
+      relevantChunks = await searchDocument(question, documentId, LARGE_DOC_TOP_K, userId);
+    } else {
+      console.log(`📄 Large doc (${totalChunks} chunks) -> vector top-${LARGE_DOC_TOP_K}`);
+      relevantChunks = await searchDocument(question, documentId, LARGE_DOC_TOP_K, userId);
+    }
 
     if (!relevantChunks || relevantChunks.length === 0) {
       return {
-        answer: "I couldn't find any relevant information in this document for your question. Please try asking something else or check if the document has been properly processed.",
+        answer: "I couldn't find any relevant information in this document.",
         sources: [],
         chunks: [],
       };
     }
 
-    // Build raw context string (with page numbers) – this will be wrapped by groqService
-    const contextText = relevantChunks.map(chunk =>
-      `[Page ${chunk.pageNumber || 1}]\n${chunk.content || chunk.text || ''}`
-    ).join('\n\n');
+    const contextText = buildContext(relevantChunks);
+    const answer = await aiService.generateChatResponse(question, contextText);
 
-    console.log(`📝 Built raw context, sending to AI service...`);
-
-    // Pass question and raw context – aiService will wrap it properly
-    let answer;
-    try {
-      answer = await aiService.generateChatResponse(question, contextText);
-      console.log(`✅ Got response from AI service`);
-    } catch (aiError) {
-      console.error('❌ AI service error:', aiError);
-      throw new Error(`AI service failed: ${aiError.message}`);
+    const seenPages = new Set();
+    const sources = [];
+    for (const chunk of relevantChunks) {
+      const page = chunk.pageNumber || 1;
+      const key = `${document._id}-${page}`;
+      if (!seenPages.has(key)) {
+        seenPages.add(key);
+        sources.push({ page, document: document.title, documentId: document._id });
+      }
     }
 
-    // Extract sources
-    const sources = relevantChunks.map(chunk => ({
-      page: chunk.pageNumber || 1,
-      document: document.title,
-      documentId: document._id,
-    }));
-
-    return {
-      answer,
-      sources,
-      chunks: relevantChunks.map(chunk => ({
-        content: chunk.content || chunk.text || '',
-        pageNumber: chunk.pageNumber || 1,
-        score: chunk.score || 0,
-      })),
-    };
+    return { answer, sources, chunks: relevantChunks };
   } catch (error) {
     console.error('❌ RAG query error:', error);
     throw new Error(`Failed to process query: ${error.message}`);
   }
 };
 
-// Multi-document RAG query – also updated to pass raw context
 const processMultiDocumentRAG = async (question, documentIds, userId) => {
   try {
-    // Validate all documents exist and belong to user
     const documents = await Document.find({
       _id: { $in: documentIds },
-      userId: userId,
+      userId,
       status: 'completed',
     });
+    if (documents.length === 0) throw new Error('No valid documents found');
 
-    if (documents.length === 0) {
-      throw new Error('No valid documents found');
-    }
-
-    // Get chunks from all documents
     const allChunks = [];
-
     for (const doc of documents) {
-      const chunks = await searchDocument(question, doc._id, 3);
-      allChunks.push(...chunks.map(chunk => ({
-        ...chunk,
-        documentTitle: doc.title,
-        documentId: doc._id,
-      })));
+      const docTotalChunks = await Chunk.countDocuments({ documentId: doc._id });
+      let chunks;
+      if (docTotalChunks <= SMALL_DOC_CHUNKS) {
+        chunks = await Chunk.find({ documentId: doc._id }).sort({ chunkIndex: 1 }).limit(50);
+      } else {
+        chunks = await searchDocument(question, doc._id, 5, userId);
+      }
+      allChunks.push(
+        ...chunks.map((chunk) => ({
+          ...chunk._doc,
+          documentTitle: doc.title,
+          documentId: doc._id,
+        }))
+      );
     }
 
-    // Sort by relevance score
     allChunks.sort((a, b) => (b.score || 0) - (a.score || 0));
-    const topChunks = allChunks.slice(0, 10);
+    const topChunks = allChunks.slice(0, 20);
 
     if (topChunks.length === 0) {
       return {
@@ -118,37 +115,22 @@ const processMultiDocumentRAG = async (question, documentIds, userId) => {
       };
     }
 
-    // Build raw context with document titles and page numbers
-    const contextText = topChunks.map(chunk =>
-      `[${chunk.documentTitle || 'Document'} - Page ${chunk.pageNumber || 1}]\n${chunk.content || chunk.text || ''}`
-    ).join('\n\n');
-
-    // Pass raw context – aiService will wrap
+    const contextText = buildContext(
+      topChunks.map((c) => ({ ...c, pageNumber: c.pageNumber, content: `[${c.documentTitle}] ${c.content}` }))
+    );
     const answer = await aiService.generateChatResponse(question, contextText);
 
-    const sources = topChunks.map(chunk => ({
+    const sources = topChunks.map((chunk) => ({
       page: chunk.pageNumber || 1,
       document: chunk.documentTitle,
       documentId: chunk.documentId,
     }));
 
-    return {
-      answer,
-      sources,
-      chunks: topChunks.map(chunk => ({
-        content: chunk.content || chunk.text || '',
-        pageNumber: chunk.pageNumber || 1,
-        document: chunk.documentTitle,
-        score: chunk.score || 0,
-      })),
-    };
+    return { answer, sources, chunks: topChunks };
   } catch (error) {
     console.error('❌ Multi-document RAG error:', error);
     throw new Error(`Failed to process multi-document query: ${error.message}`);
   }
 };
 
-module.exports = {
-  processRAGQuery,
-  processMultiDocumentRAG,
-};
+module.exports = { processRAGQuery, processMultiDocumentRAG };

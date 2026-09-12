@@ -1,36 +1,33 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const Chunk = require('../models/Chunk');
 const { generateEmbeddingForText } = require('./embeddingService');
 
-// Configuration - MUST MATCH YOUR ATLAS INDEX NAME
 const VECTOR_SEARCH_INDEX = 'default';
 
-// Perform vector search
-const vectorSearch = async (query, documentId, limit = 5) => {
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const vectorSearch = async (query, documentId, limit = 5, userId = null) => {
   try {
     console.log(`🔍 Vector search: query="${query}", documentId=${documentId}`);
-    
-    // 1. Generate embedding for query using your service
+
     const queryEmbedding = await generateEmbeddingForText(query);
     if (!queryEmbedding || !Array.isArray(queryEmbedding)) {
       throw new Error('Failed to generate query embedding');
     }
 
-    // Build match conditions
     const matchConditions = {};
     if (documentId) {
-      // IMPORTANT: Cast string to ObjectId for the Atlas filter
       matchConditions.documentId = new mongoose.Types.ObjectId(documentId);
     }
+    if (userId) {
+      matchConditions.userId = new mongoose.Types.ObjectId(userId);
+    }
 
-    console.log(`📊 Match conditions:`, matchConditions);
-
-    // 2. Use Atlas Vector Search
     try {
       const results = await Chunk.aggregate([
         {
           $vectorSearch: {
-            index: VECTOR_SEARCH_INDEX, // 'default'
+            index: VECTOR_SEARCH_INDEX,
             path: 'embedding',
             queryVector: queryEmbedding,
             numCandidates: 100,
@@ -43,6 +40,7 @@ const vectorSearch = async (query, documentId, limit = 5) => {
             content: 1,
             pageNumber: 1,
             documentId: 1,
+            userId: 1,
             chunkIndex: 1,
             metadata: 1,
             score: { $meta: 'vectorSearchScore' },
@@ -51,39 +49,38 @@ const vectorSearch = async (query, documentId, limit = 5) => {
       ]);
 
       console.log(`✅ Vector search found ${results.length} results`);
-      if (results && results.length > 0) {
-        return results;
-      }
+      if (results && results.length > 0) return results;
     } catch (vectorError) {
-      // If the Atlas index isn't found, log clearly and fall back
-      console.error('⚠️ Vector search failed (Check Atlas Index Name):', vectorError.message);
+      console.error(
+        '⚠️ Vector search failed (check Atlas index name):',
+        vectorError.message
+      );
       console.log('Falling back to text search...');
     }
 
-    // 3. Fallback to text search
-    return await fallbackSearch(query, documentId, limit);
+    return await fallbackSearch(query, documentId, limit, userId);
   } catch (error) {
     console.error('Vector search error:', error);
-    return await fallbackSearch(query, documentId, limit);
+    return await fallbackSearch(query, documentId, limit, userId);
   }
 };
 
-// Fallback text search (Regex - for local development)
-const fallbackSearch = async (query, documentId, limit = 5) => {
+const fallbackSearch = async (query, documentId, limit = 5, userId = null) => {
   try {
     console.log(`📝 Fallback text search: query="${query}"`);
-    
-    const keywords = query.split(/\s+/).filter(word => word.length > 2);
-    
-    const searchConditions = [];
-    for (const keyword of keywords) {
-      searchConditions.push({ content: { $regex: keyword, $options: 'i' } });
-    }
+
+    const keywords = query
+      .split(/\s+/)
+      .filter((word) => word.length > 2)
+      .map(escapeRegex);
+
+    const searchConditions = keywords.map((kw) => ({
+      content: { $regex: kw, $options: 'i' },
+    }));
 
     const matchConditions = {};
-    if (documentId) {
-      matchConditions.documentId = documentId;
-    }
+    if (documentId) matchConditions.documentId = documentId;
+    if (userId) matchConditions.userId = userId;
 
     let results = [];
     if (searchConditions.length > 0) {
@@ -105,21 +102,18 @@ const fallbackSearch = async (query, documentId, limit = 5) => {
   }
 };
 
-// Search within a specific document
-const searchDocument = async (query, documentId, limit = 5) => {
-  return await vectorSearch(query, documentId, limit);
+const searchDocument = async (query, documentId, limit = 5, userId = null) => {
+  return await vectorSearch(query, documentId, limit, userId);
 };
 
-// Search across all user documents
 const searchAllDocuments = async (query, userId, limit = 5) => {
-  return await vectorSearch(query, null, limit);
+  return await vectorSearch(query, null, limit, userId);
 };
 
-// Get similar chunks
 const getSimilarChunks = async (chunkId, limit = 5) => {
   try {
     const chunk = await Chunk.findById(chunkId);
-    if (!chunk || !chunk.embedding) {
+    if (!chunk || !chunk.embedding || chunk.embedding.length === 0) {
       throw new Error('Chunk not found or has no embedding');
     }
 

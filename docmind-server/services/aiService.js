@@ -1,4 +1,4 @@
-﻿const { generateOpenAIResponse, generateOpenAIStream } = require('./openaiService');
+const { generateOpenAIResponse, generateOpenAIStream } = require('./openaiService');
 const embeddingClient = require('./embeddingClient');
 
 class AIService {
@@ -8,14 +8,31 @@ class AIService {
 
   async generateChatResponse(question, context) {
     console.log(`🧠 Using ${this.provider}...`);
-    // The service expects a single prompt; we combine question+context here
-    const fullPrompt = `Context: ${context}\n\nQuestion: ${question}\n\nAnswer:`;
+    const fullPrompt = [
+      '===================== DOCUMENT CONTEXT =====================',
+      context,
+      '=================== END DOCUMENT CONTEXT ===================',
+      '',
+      'USER QUESTION:',
+      question,
+      '',
+      'ANSWER (using ONLY the document context above):',
+    ].join('\n');
     return await generateOpenAIResponse(fullPrompt);
   }
 
   async generateChatStream(question, context) {
     console.log(`🚀 Using ${this.provider} stream...`);
-    const fullPrompt = `Context: ${context}\n\nQuestion: ${question}\n\nAnswer:`;
+    const fullPrompt = [
+      '===================== DOCUMENT CONTEXT =====================',
+      context,
+      '=================== END DOCUMENT CONTEXT ===================',
+      '',
+      'USER QUESTION:',
+      question,
+      '',
+      'ANSWER (using ONLY the document context above):',
+    ].join('\n');
     return await generateOpenAIStream(fullPrompt);
   }
 

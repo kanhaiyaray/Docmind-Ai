@@ -1,10 +1,8 @@
-﻿const Chunk = require('../models/Chunk');
+const Chunk = require('../models/Chunk');
 
-// Configuration
 const CHUNK_SIZE = parseInt(process.env.CHUNK_SIZE) || 800;
 const OVERLAP = parseInt(process.env.OVERLAP) || 150;
 
-// Chunk document pages into smaller pieces
 const chunkDocument = async (documentId, userId, pages) => {
   try {
     const insertBatchSize = 50;
@@ -17,6 +15,7 @@ const chunkDocument = async (documentId, userId, pages) => {
       const pageNumber = page.pageNumber;
 
       const pageChunks = splitTextIntoChunks(pageText, CHUNK_SIZE, OVERLAP);
+      console.log(`   Page ${pageNumber}: ${pageText.length} chars -> ${pageChunks.length} chunks`);
 
       for (const chunkText of pageChunks) {
         if (!chunkText.trim()) continue;
@@ -39,11 +38,7 @@ const chunkDocument = async (documentId, userId, pages) => {
         if (chunks.length >= insertBatchSize) {
           await Chunk.insertMany(chunks);
           totalChunks += chunks.length;
-          console.log(`✅ Inserted ${totalChunks} chunks so far...`);
           chunks = [];
-          if (global.gc) {
-            global.gc();
-          }
         }
       }
     }
@@ -64,46 +59,36 @@ const chunkDocument = async (documentId, userId, pages) => {
 const splitTextIntoChunks = (text, chunkSize, overlap) => {
   if (!text || text.length === 0) return [];
 
+  const cleanedText = text.replace(/\s+/g, ' ').trim();
+  if (cleanedText.length <= chunkSize) return [cleanedText];
+
+  // Guaranteed advance step: never smaller than 1
+  const step = Math.max(chunkSize - overlap, 1);
   const chunks = [];
   let start = 0;
-  const cleanedText = text.replace(/\s+/g, ' ').trim();
-  const textLength = cleanedText.length;
 
-  while (start < textLength) {
-    let end = Math.min(start + chunkSize, textLength);
+  while (start < cleanedText.length) {
+    let end = Math.min(start + chunkSize, cleanedText.length);
 
-    if (end < textLength) {
-      const searchStart = Math.max(start, end - 50);
-      const searchEnd = end;
-      const searchText = cleanedText.substring(searchStart, searchEnd);
-      
-      const sentenceEndings = ['. ', '? ', '! ', '.\n', '?\n', '!\n', '.', '?', '!'];
-      let lastEnding = -1;
-      
-      for (const ending of sentenceEndings) {
-        const idx = searchText.lastIndexOf(ending);
-        if (idx > lastEnding) {
-          lastEnding = idx;
-        }
-      }
-
-      if (lastEnding > 0) {
-        end = searchStart + lastEnding + 1;
-      } else {
-        const lastSpace = cleanedText.lastIndexOf(' ', end);
-        if (lastSpace > start) {
-          end = lastSpace;
-        }
+    // Try to end on a sentence boundary within the last 120 chars
+    if (end < cleanedText.length) {
+      const windowStart = Math.max(end - 120, start + Math.floor(chunkSize / 2));
+      const window = cleanedText.substring(windowStart, end);
+      const period = Math.max(
+        window.lastIndexOf('. '),
+        window.lastIndexOf('? '),
+        window.lastIndexOf('! ')
+      );
+      if (period > 0) {
+        end = windowStart + period + 1;
       }
     }
 
     const chunk = cleanedText.substring(start, end).trim();
-    if (chunk) {
-      chunks.push(chunk);
-    }
+    if (chunk) chunks.push(chunk);
 
-    start = Math.max(start + 1, end - overlap);
-    if (start >= textLength) break;
+    // Always advance by `step` — this is the fix
+    start += step;
   }
 
   return chunks;
@@ -138,13 +123,7 @@ const getChunkStats = async (userId) => {
       },
     },
   ]);
-
-  return stats[0] || {
-    totalChunks: 0,
-    totalWords: 0,
-    totalChars: 0,
-    avgChunkSize: 0,
-  };
+  return stats[0] || { totalChunks: 0, totalWords: 0, totalChars: 0, avgChunkSize: 0 };
 };
 
 module.exports = {
