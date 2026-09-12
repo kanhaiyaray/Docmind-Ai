@@ -1,5 +1,5 @@
-﻿import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
@@ -28,27 +28,16 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        // ✅ Changed manualChunks to a function
         manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // Group React and React Router into 'vendor'
-            if (
-              id.includes('react') ||
-              id.includes('react-dom') ||
-              id.includes('react-router-dom')
-            ) {
-              return 'vendor'
-            }
-            // Group UI libraries into 'ui'
-            if (
-              id.includes('lucide-react') ||
-              id.includes('react-markdown')
-            ) {
-              return 'ui'
-            }
-            // Everything else from node_modules goes to 'vendor'
-            return 'vendor'
+          if (!id.includes('node_modules')) return;
+          const normalized = id.replace(/\\/g, '/');
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(normalized)) {
+            return 'vendor';
           }
+          if (/node_modules\/(lucide-react|react-markdown|react-hot-toast|remark-|rehype-|micromark|mdast-|hast-|unist-|vfile|bail|trough|unified|devlop|property-information|space-separated-tokens|comma-separated-tokens|decode-named-character-reference|character-entities|is-plain-obj|ccount|longest-streak|zwitch|goober|style-to-)\//.test(normalized)) {
+            return 'ui';
+          }
+          return 'vendor';
         },
       },
     },
@@ -59,4 +48,4 @@ export default defineConfig({
   esbuild: {
     jsx: 'automatic',
   },
-})
+});
