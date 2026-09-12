@@ -1,19 +1,17 @@
-﻿const User = require('../models/User');
+const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const crypto = require('crypto');
-const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
+const {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} = require('../services/emailService');
 
 const generateToken = (userId) => {
-  return jwt.sign(
-    { userId },
-    process.env.JWT_SECRET,
-    { expiresIn: '15m' }
-  );
+  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '15m' });
 };
 
-// UPDATED: accepts deviceInfo for session tracking
 const generateRefreshToken = async (userId, deviceInfo = {}) => {
   const refreshToken = jwt.sign(
     { userId },
@@ -34,12 +32,18 @@ const generateRefreshToken = async (userId, deviceInfo = {}) => {
   return refreshToken;
 };
 
-const setAuthCookies = (res, token, refreshToken) => {
+const getCookieOptions = () => {
   const isProduction = process.env.NODE_ENV === 'production';
-  const cookieOptions = {
+  return {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? 'none' : 'lax',
+  };
+};
+
+const setAuthCookies = (res, token, refreshToken) => {
+  const cookieOptions = {
+    ...getCookieOptions(),
     maxAge: 15 * 60 * 1000,
   };
   res.cookie('token', token, cookieOptions);
@@ -48,37 +52,31 @@ const setAuthCookies = (res, token, refreshToken) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
-// --------------------------------------
 
 const clearAuthCookies = (res) => {
-  res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
-  res.clearCookie('refreshToken', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
-  res.clearCookie('_csrf', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
+  const cookieOptions = getCookieOptions();
+  res.clearCookie('token', cookieOptions);
+  res.clearCookie('refreshToken', cookieOptions);
+  res.clearCookie('_csrf', cookieOptions);
 };
 
-// ================================
-// REGISTER
-// ================================
 const register = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      const errorMessages = errors.array().map(e => e.msg).join(', ');
-      return res.status(400).json({
-        success: false,
-        message: errorMessages,
-        errors: errors.array(),
-      });
+      const errorMessages = errors.array().map((e) => e.msg).join(', ');
+      return res
+        .status(400)
+        .json({ success: false, message: errorMessages, errors: errors.array() });
     }
 
     const { name, email, password } = req.body;
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'User already exists with this email',
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: 'User already exists with this email' });
     }
 
     const user = new User({
@@ -116,65 +114,80 @@ const register = async (req, res) => {
     });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during registration',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Server error during registration' });
   }
 };
 
-// ================================
-// LOGIN
-// ================================
 const login = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      const errorMessages = errors.array().map(e => e.msg).join(', ');
-      return res.status(400).json({
-        success: false,
-        message: errorMessages,
-        errors: errors.array(),
-      });
+      const errorMessages = errors.array().map((e) => e.msg).join(', ');
+      return res
+        .status(400)
+        .json({ success: false, message: errorMessages, errors: errors.array() });
     }
 
     const { email, password } = req.body;
-
     console.log(`🔐 Login attempt for: ${email}`);
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    // Must select +password since it's excluded by default
+    const user = await User.findOne({ email: email.toLowerCase() })
+      .select('+password +failedLoginAttempts +accountLockedUntil')
+      .select('+emailVerificationToken');
 
     if (!user) {
-      console.log(`❌ User not found: ${email}`);
-      return res.status(401).json({
+      return res
+        .status(401)
+        .json({ success: false, message: 'Invalid email or password' });
+    }
+
+    // ----- LOCKOUT CHECK -----
+    if (user.isAccountLocked && user.isAccountLocked()) {
+      const minutesLeft = Math.ceil(
+        (user.accountLockedUntil - Date.now()) / (60 * 1000)
+      );
+      return res.status(423).json({
         success: false,
-        message: 'Invalid email or password',
+        message: `Account is locked due to too many failed login attempts. Try again in ${minutesLeft} minute(s).`,
+        code: 'ACCOUNT_LOCKED',
       });
     }
 
     if (!user.isActive) {
-      console.log(`❌ Account deactivated: ${email}`);
-      return res.status(401).json({
-        success: false,
-        message: 'Account is deactivated',
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: 'Account is deactivated' });
     }
 
     if (!user.isEmailVerified) {
-      console.log(`❌ Email not verified: ${email}`);
       return res.status(401).json({
         success: false,
-        message: 'Please verify your email before logging in. Check your inbox for the verification link.',
+        message:
+          'Please verify your email before logging in. Check your inbox for the verification link.',
+        code: 'EMAIL_NOT_VERIFIED',
       });
     }
 
     const isPasswordMatch = await user.comparePassword(password);
     if (!isPasswordMatch) {
-      console.log(`❌ Invalid password for: ${email}`);
+      // Increment failed attempts (locks after 5)
+      await user.incrementFailedLoginAttempts();
+      const remaining = Math.max(0, 5 - (user.failedLoginAttempts || 0));
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password',
+        message:
+          remaining > 0
+            ? `Invalid email or password. ${remaining} attempt(s) remaining before lockout.`
+            : 'Too many failed attempts. Account locked for 15 minutes.',
       });
+    }
+
+    // Reset failed attempts on successful login
+    if (user.failedLoginAttempts > 0 || user.accountLockedUntil) {
+      await user.resetFailedLoginAttempts();
     }
 
     user.lastLogin = new Date();
@@ -188,32 +201,22 @@ const login = async (req, res) => {
 
     setAuthCookies(res, token, refreshToken);
 
-    console.log(`✅ Login successful: ${email}`);
-
-    res.json({
-      success: true,
-      user: user.getPublicProfile(),
-    });
+    res.json({ success: true, user: user.getPublicProfile() });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during login',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Server error during login' });
   }
 };
 
-// ================================
-// EMAIL VERIFICATION
-// ================================
 const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
     if (!token) {
-      return res.status(400).json({
-        success: false,
-        message: 'Verification token is required',
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Verification token is required' });
     }
 
     const user = await User.findOne({
@@ -222,10 +225,9 @@ const verifyEmail = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired verification token',
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid or expired verification token' });
     }
 
     user.isEmailVerified = true;
@@ -239,31 +241,80 @@ const verifyEmail = async (req, res) => {
     });
   } catch (error) {
     console.error('Verify email error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during email verification',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Server error during email verification' });
   }
 };
 
-// ================================
-// FORGOT PASSWORD
-// ================================
+// ----- NEW: resend verification email -----
+const resendVerification = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    // Don't leak whether the account exists
+    if (!user) {
+      return res.json({
+        success: true,
+        message:
+          'If an account with that email exists and is unverified, a new link has been sent.',
+      });
+    }
+
+    if (user.isEmailVerified) {
+      return res.json({
+        success: true,
+        message: 'This email is already verified. You can log in.',
+      });
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpires = Date.now() + 60 * 60 * 1000;
+    await user.save();
+
+    try {
+      await sendVerificationEmail(user.email, user.name, verificationToken);
+    } catch (emailError) {
+      console.error('Resend verification email failed:', emailError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send verification email. Please try again later.',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'If an account with that email exists and is unverified, a new link has been sent.',
+    });
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is required',
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Email is required' });
     }
 
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.json({
         success: true,
-        message: 'If an account with that email exists, a reset link has been sent.',
+        message:
+          'If an account with that email exists, a reset link has been sent.',
       });
     }
 
@@ -280,20 +331,15 @@ const forgotPassword = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'If an account with that email exists, a reset link has been sent.',
+      message:
+        'If an account with that email exists, a reset link has been sent.',
     });
   } catch (error) {
     console.error('Forgot password error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// ================================
-// RESET PASSWORD
-// ================================
 const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
@@ -317,46 +363,41 @@ const resetPassword = async (req, res) => {
     }).select('+password');
 
     if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired reset token',
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid or expired reset token' });
     }
 
     user.password = newPassword;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     user.failedLoginAttempts = 0;
+    user.accountLockedUntil = null;
     await user.save();
 
     res.json({
       success: true,
-      message: 'Password reset successfully. You can now log in with your new password.',
+      message:
+        'Password reset successfully. You can now log in with your new password.',
     });
   } catch (error) {
     console.error('Reset password error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during password reset',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Server error during password reset' });
   }
 };
 
-// ================================
-// REFRESH TOKEN (UPDATED WITH ROTATION)
-// ================================
 const refreshToken = async (req, res) => {
   try {
     const oldRefreshToken = req.cookies.refreshToken;
 
     if (!oldRefreshToken) {
-      return res.status(401).json({
-        success: false,
-        message: 'No refresh token provided',
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: 'No refresh token provided' });
     }
 
-    // Verify old refresh token
     let decoded;
     try {
       decoded = jwt.verify(
@@ -364,13 +405,11 @@ const refreshToken = async (req, res) => {
         process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + '_refresh'
       );
     } catch (error) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid refresh token',
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: 'Invalid refresh token' });
     }
 
-    // Check if token exists and is not revoked
     const storedToken = await RefreshToken.findOne({
       token: oldRefreshToken,
       userId: decoded.userId,
@@ -378,60 +417,45 @@ const refreshToken = async (req, res) => {
     });
 
     if (!storedToken) {
-      return res.status(401).json({
-        success: false,
-        message: 'Refresh token not found or revoked',
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: 'Refresh token not found or revoked' });
     }
 
     if (storedToken.expiresAt < new Date()) {
       await RefreshToken.findByIdAndUpdate(storedToken._id, { isRevoked: true });
-      return res.status(401).json({
-        success: false,
-        message: 'Refresh token expired',
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: 'Refresh token expired' });
     }
 
-    // Get user
     const user = await User.findById(decoded.userId);
     if (!user || !user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found or inactive',
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: 'User not found or inactive' });
     }
 
-    // --- ROTATION: Revoke old token ---
     await RefreshToken.findByIdAndUpdate(storedToken._id, { isRevoked: true });
 
-    // --- Generate NEW refresh token ---
     const newRefreshToken = await generateRefreshToken(user._id, {
       userAgent: req.headers['user-agent'],
       ipAddress: req.ip || req.connection.remoteAddress,
     });
 
-    // --- Generate new access token ---
     const newAccessToken = generateToken(user._id);
 
-    // Set cookies with new tokens
     setAuthCookies(res, newAccessToken, newRefreshToken);
 
-    res.json({
-      success: true,
-      message: 'Token refreshed successfully',
-    });
+    res.json({ success: true, message: 'Token refreshed successfully' });
   } catch (error) {
     console.error('Refresh token error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during token refresh',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Server error during token refresh' });
   }
 };
 
-// ================================
-// LOGOUT & LOGOUT ALL
-// ================================
 const logout = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
@@ -444,65 +468,38 @@ const logout = async (req, res) => {
     }
 
     clearAuthCookies(res);
-
-    res.json({
-      success: true,
-      message: 'Logged out successfully',
-    });
+    res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during logout',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Server error during logout' });
   }
 };
 
 const logoutAll = async (req, res) => {
   try {
-    await RefreshToken.updateMany(
-      { userId: req.userId },
-      { isRevoked: true }
-    );
-
+    await RefreshToken.updateMany({ userId: req.userId }, { isRevoked: true });
     clearAuthCookies(res);
-
-    res.json({
-      success: true,
-      message: 'Logged out from all devices',
-    });
+    res.json({ success: true, message: 'Logged out from all devices' });
   } catch (error) {
     console.error('Logout all error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during logout all',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Server error during logout all' });
   }
 };
 
-// ================================
-// GET ME, UPDATE PROFILE, CHANGE PASSWORD
-// ================================
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
-
-    res.json({
-      success: true,
-      user: user.getPublicProfile(),
-    });
+    res.json({ success: true, user: user.getPublicProfile() });
   } catch (error) {
     console.error('Get me error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
@@ -512,10 +509,7 @@ const updateProfile = async (req, res) => {
     const user = await User.findById(req.userId);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     if (name) user.name = name;
@@ -523,16 +517,10 @@ const updateProfile = async (req, res) => {
 
     await user.save();
 
-    res.json({
-      success: true,
-      user: user.getPublicProfile(),
-    });
+    res.json({ success: true, user: user.getPublicProfile() });
   } catch (error) {
     console.error('Update profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
@@ -542,54 +530,37 @@ const changePassword = async (req, res) => {
     const user = await User.findById(req.userId).select('+password');
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     const isMatch = await user.comparePassword(currentPassword);
     if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Current password is incorrect',
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: 'Current password is incorrect' });
     }
 
     user.password = newPassword;
     await user.save();
 
-    res.json({
-      success: true,
-      message: 'Password updated successfully',
-    });
+    res.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
     console.error('Change password error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// ================================
-// NEW: DEVICE MANAGEMENT (SESSIONS)
-// ================================
-
-// @desc    Get all active sessions for the current user
-// @route   GET /api/auth/sessions
-// @access  Private
 const getSessions = async (req, res) => {
   try {
     const sessions = await RefreshToken.find({
       userId: req.userId,
       isRevoked: false,
       expiresAt: { $gt: new Date() },
-    }).select('_id deviceInfo createdAt expiresAt');
+    }).select('_id token deviceInfo createdAt expiresAt');
 
     const currentRefreshToken = req.cookies.refreshToken;
 
-    const formattedSessions = sessions.map(s => ({
+    const formattedSessions = sessions.map((s) => ({
       id: s._id,
       deviceInfo: s.deviceInfo,
       createdAt: s.createdAt,
@@ -597,22 +568,15 @@ const getSessions = async (req, res) => {
       isCurrent: s.token === currentRefreshToken,
     }));
 
-    res.json({
-      success: true,
-      sessions: formattedSessions,
-    });
+    res.json({ success: true, sessions: formattedSessions });
   } catch (error) {
     console.error('Get sessions error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch sessions',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Failed to fetch sessions' });
   }
 };
 
-// @desc    Revoke a specific session (logout from that device)
-// @route   DELETE /api/auth/sessions/:id
-// @access  Private
 const revokeSession = async (req, res) => {
   try {
     const sessionId = req.params.id;
@@ -623,13 +587,11 @@ const revokeSession = async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: 'Session not found or already revoked',
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Session not found or already revoked' });
     }
 
-    // Prevent revoking current session (user would logout)
     if (session.token === req.cookies.refreshToken) {
       return res.status(400).json({
         success: false,
@@ -640,31 +602,23 @@ const revokeSession = async (req, res) => {
     session.isRevoked = true;
     await session.save();
 
-    res.json({
-      success: true,
-      message: 'Session revoked successfully',
-    });
+    res.json({ success: true, message: 'Session revoked successfully' });
   } catch (error) {
     console.error('Revoke session error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to revoke session',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Failed to revoke session' });
   }
 };
 
-// @desc    Revoke all sessions except current
-// @route   POST /api/auth/sessions/revoke-others
-// @access  Private
 const revokeOthers = async (req, res) => {
   try {
     const currentRefreshToken = req.cookies.refreshToken;
 
     if (!currentRefreshToken) {
-      return res.status(401).json({
-        success: false,
-        message: 'No active session',
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: 'No active session' });
     }
 
     await RefreshToken.updateMany(
@@ -676,16 +630,12 @@ const revokeOthers = async (req, res) => {
       { isRevoked: true }
     );
 
-    res.json({
-      success: true,
-      message: 'All other sessions revoked',
-    });
+    res.json({ success: true, message: 'All other sessions revoked' });
   } catch (error) {
     console.error('Revoke others error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to revoke other sessions',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Failed to revoke other sessions' });
   }
 };
 
@@ -693,6 +643,7 @@ module.exports = {
   register,
   login,
   verifyEmail,
+  resendVerification,
   forgotPassword,
   resetPassword,
   refreshToken,

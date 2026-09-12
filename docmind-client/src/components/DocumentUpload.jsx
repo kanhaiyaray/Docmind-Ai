@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Upload, X, File, AlertCircle, CheckCircle } from 'lucide-react';
 import api from '../services/api';
 
@@ -38,11 +38,10 @@ const DocumentUpload = ({ onUploadSuccess }) => {
 
     try {
       const response = await api.post('/documents/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
         onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
           setProgress(percentCompleted);
         },
       });
@@ -50,7 +49,7 @@ const DocumentUpload = ({ onUploadSuccess }) => {
       if (response.data.success) {
         setSuccess(true);
         setProgress(100);
-        
+
         setTimeout(() => {
           setFile(null);
           setSuccess(false);
@@ -59,7 +58,9 @@ const DocumentUpload = ({ onUploadSuccess }) => {
         }, 2000);
       }
     } catch (error) {
-      setError(error.response?.data?.message || 'Upload failed. Please try again.');
+      setError(
+        error.response?.data?.message || 'Upload failed. Please try again.'
+      );
     } finally {
       setUploading(false);
     }
@@ -79,7 +80,9 @@ const DocumentUpload = ({ onUploadSuccess }) => {
     <div className="w-full">
       <div
         className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-          file ? 'border-purple-500 bg-purple-50' : 'border-gray-300 hover:border-purple-400 hover:bg-gray-50'
+          file
+            ? 'border-purple-500 bg-purple-50'
+            : 'border-gray-300 hover:border-purple-400 hover:bg-gray-50'
         }`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
@@ -162,10 +165,7 @@ const DocumentUpload = ({ onUploadSuccess }) => {
       )}
 
       {file && !uploading && !success && (
-        <button
-          onClick={handleUpload}
-          className="btn-primary w-full mt-4 py-3"
-        >
+        <button onClick={handleUpload} className="btn-primary w-full mt-4 py-3">
           Upload Document
         </button>
       )}

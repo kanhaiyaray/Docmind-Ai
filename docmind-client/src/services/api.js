@@ -1,12 +1,12 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // NO default Content-Type here — axios sets it per request:
+  //   - 'application/json' for plain objects
+  //   - 'multipart/form-data' (with boundary) for FormData
   withCredentials: true,
   timeout: 30000,
 });
@@ -38,18 +38,19 @@ const fetchCsrfToken = async () => {
 
 api.interceptors.request.use(
   async (config) => {
-    const skipCsrf = 
-      config.url.includes('/auth/login') ||
-      config.url.includes('/auth/register') ||
-      config.url.includes('/auth/refresh') ||
-      config.url.includes('/auth/logout') ||
+    const url = config.url || '';
+    const skipCsrf =
+      url.includes('/auth/login') ||
+      url.includes('/auth/register') ||
+      url.includes('/auth/refresh') ||
+      url.includes('/csrf-token') ||
       config.method === 'get' ||
-      config.method === 'options' ||
-      config.url.includes('/csrf-token');
+      config.method === 'options';
 
     if (!skipCsrf && config.method !== 'get') {
       try {
         const token = await fetchCsrfToken();
+        config.headers = config.headers || {};
         config.headers['X-CSRF-Token'] = token;
       } catch (error) {
         console.error('Failed to add CSRF token:', error);
@@ -71,15 +72,13 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
-    // Log the full error for debugging
     console.error('❌ API Error Details:', {
       status: error.response?.status,
       url: error.config?.url,
       message: error.response?.data?.message || error.message,
-      data: error.response?.data
+      data: error.response?.data,
     });
 
-    // Network errors
     if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
       console.error('❌ Server connection error.');
       return Promise.reject({
@@ -87,21 +86,19 @@ api.interceptors.response.use(
           status: 503,
           data: {
             success: false,
-            message: 'Cannot connect to server. Please check if the backend is running.',
+            message:
+              'Cannot connect to server. Please check if the backend is running.',
           },
         },
       });
     }
 
-    // Handle 401 errors
     if (error.response?.status === 401) {
-      // If it's a login attempt, don't redirect - just reject with the error
       if (error.config?.url?.includes('/auth/login')) {
         console.log('❌ Login failed: Invalid credentials');
         return Promise.reject(error);
       }
-      
-      // For other 401 errors, try to refresh token
+
       if (error.response?.data?.code === 'TOKEN_EXPIRED') {
         console.log('🔄 Token expired, attempting to refresh...');
         try {
@@ -113,7 +110,9 @@ api.interceptors.response.use(
           if (refreshResponse.data.success) {
             console.log('✅ Token refreshed successfully');
             const originalRequest = error.config;
-            delete originalRequest.headers['X-CSRF-Token'];
+            if (originalRequest.headers) {
+              delete originalRequest.headers['X-CSRF-Token'];
+            }
             return api(originalRequest);
           }
         } catch (refreshError) {
@@ -124,8 +123,7 @@ api.interceptors.response.use(
           return Promise.reject(refreshError);
         }
       }
-      
-      // Other 401 errors - clear session
+
       console.error('❌ Unauthorized - clearing session');
       csrfToken = null;
       localStorage.removeItem('user');

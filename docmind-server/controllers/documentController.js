@@ -1,44 +1,33 @@
-﻿const Document = require('../models/Document');
+const Document = require('../models/Document');
 const Chunk = require('../models/Chunk');
-const { upload } = require('../middleware/uploadMiddleware');
+const Conversation = require('../models/Conversation');
 const pdfService = require('../services/pdfService');
 const chunkService = require('../services/chunkService');
 const embeddingService = require('../services/embeddingService');
 const fs = require('fs');
 const path = require('path');
 
-// @desc    Upload document
-// @route   POST /api/documents/upload
-// @access  Private
 const uploadDocument = async (req, res) => {
   try {
-    console.log('📤 Upload request received');
-    
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'No file uploaded',
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: 'No file uploaded' });
     }
-
-    console.log(`📄 File: ${req.file.originalname}, Size: ${req.file.size} bytes`);
 
     const { originalname, filename, size, path: filePath } = req.file;
 
-    // Create document record
     const document = new Document({
       userId: req.userId,
       title: path.basename(originalname, path.extname(originalname)),
-      filename: filename,
+      filename,
       fileUrl: `/uploads/${filename}`,
       fileSize: size,
       status: 'processing',
     });
 
     await document.save();
-    console.log(`📝 Document record created: ${document._id}`);
 
-    // Process PDF asynchronously
     processDocument(document._id, filePath, req.userId).catch((error) => {
       console.error(`❌ Error processing document ${document._id}:`, error);
     });
@@ -50,127 +39,88 @@ const uploadDocument = async (req, res) => {
     });
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error uploading document',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Error uploading document' });
   }
 };
 
-// Process document (extract text, chunk, embed) – with enhanced error handling
 const processDocument = async (documentId, filePath, userId) => {
   try {
     console.log(`🔄 Processing document ${documentId}...`);
-    
+
     const document = await Document.findById(documentId);
     if (!document) {
       console.log(`❌ Document ${documentId} not found`);
       return;
     }
 
-    // ---------- STEP 1: Extract text ----------
     let extraction;
     try {
-      console.log(`📖 Extracting text from PDF...`);
       extraction = await pdfService.extractText(filePath);
-      console.log(`✅ Extracted ${extraction.pageCount} pages, ${extraction.totalChars} characters`);
     } catch (extractError) {
-      console.error(`❌ Text extraction failed:`, extractError.message);
       document.status = 'failed';
       document.processingError = `Text extraction failed: ${extractError.message}`;
       await document.save();
-      // Clean up uploaded file
-      try { fs.unlinkSync(filePath); } catch (e) {}
       return;
     }
 
-    // Update document with page count and metadata
     document.pageCount = extraction.pageCount;
-    if (extraction.metadata) {
-      document.metadata = extraction.metadata;
-    }
+    if (extraction.metadata) document.metadata = extraction.metadata;
     await document.save();
 
-    // ---------- STEP 2: Chunk text ----------
     let totalChunks;
     try {
-      console.log(`🧩 Chunking document...`);
       totalChunks = await chunkService.chunkDocument(
         documentId,
         userId,
         extraction.pages
       );
-      console.log(`✅ Created ${totalChunks} chunks`);
     } catch (chunkError) {
-      console.error(`❌ Chunking failed:`, chunkError.message);
       document.status = 'failed';
       document.processingError = `Chunking failed: ${chunkError.message}`;
       await document.save();
-      try { fs.unlinkSync(filePath); } catch (e) {}
       return;
     }
 
     if (totalChunks === 0) {
       document.status = 'failed';
-      document.processingError = 'No text content extracted from the document. It may be empty or contain only images without OCR support.';
+      document.processingError =
+        'No text content extracted from the document.';
       await document.save();
-      try { fs.unlinkSync(filePath); } catch (e) {}
       return;
     }
 
-    // ---------- STEP 3: Generate embeddings ----------
     try {
       const allChunks = await Chunk.find({ documentId }).sort({ chunkIndex: 1 });
-      console.log(`🧠 Generating embeddings for ${allChunks.length} chunks...`);
       await embeddingService.generateAndStoreEmbeddings(allChunks);
-      console.log(`✅ Embeddings generated`);
     } catch (embedError) {
-      console.error(`❌ Embedding generation failed:`, embedError.message);
       document.status = 'failed';
       document.processingError = `Embedding generation failed: ${embedError.message}`;
       await document.save();
-      try { fs.unlinkSync(filePath); } catch (e) {}
       return;
     }
 
-    // ---------- STEP 4: Mark as completed ----------
     document.status = 'completed';
     await document.save();
     console.log(`✅ Document ${documentId} processed successfully`);
-
-    // ---------- Clean up uploaded file ----------
-    try {
-      fs.unlinkSync(filePath);
-      console.log(`🗑️ Deleted uploaded file: ${filePath}`);
-    } catch (unlinkError) {
-      console.error(`⚠️ Failed to delete uploaded file ${filePath}:`, unlinkError.message);
-    }
-
   } catch (error) {
     console.error(`❌ Unhandled error processing document ${documentId}:`, error);
-    // Update document status to failed
     await Document.findByIdAndUpdate(documentId, {
       status: 'failed',
       processingError: `Processing failed: ${error.message}`,
     });
-    // Try to clean up the uploaded file
-    try { fs.unlinkSync(filePath); } catch (e) {}
   }
 };
 
-// @desc    Get all documents
-// @route   GET /api/documents
-// @access  Private
 const getDocuments = async (req, res) => {
   try {
-    console.log(`📋 Fetching documents for user ${req.userId}`);
-    
     const { status, search, page = 1, limit = 10 } = req.query;
-    
+
     const query = { userId: req.userId };
     if (status) query.status = status;
     if (search) query.$text = { $search: search };
-    
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const documentsQuery = Document.find(query)
@@ -180,8 +130,6 @@ const getDocuments = async (req, res) => {
 
     const documents = await documentsQuery;
     const total = await Document.countDocuments(query);
-
-    console.log(`📄 Found ${documents.length} documents`);
 
     res.json({
       success: true,
@@ -195,16 +143,12 @@ const getDocuments = async (req, res) => {
     });
   } catch (error) {
     console.error('Get documents error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching documents',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Error fetching documents' });
   }
 };
 
-// @desc    Get single document
-// @route   GET /api/documents/:id
-// @access  Private
 const getDocument = async (req, res) => {
   try {
     const document = await Document.findOne({
@@ -213,28 +157,20 @@ const getDocument = async (req, res) => {
     });
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: 'Document not found',
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Document not found' });
     }
 
-    res.json({
-      success: true,
-      document,
-    });
+    res.json({ success: true, document });
   } catch (error) {
     console.error('Get document error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching document',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Error fetching document' });
   }
 };
 
-// @desc    Delete document
-// @route   DELETE /api/documents/:id
-// @access  Private
 const deleteDocument = async (req, res) => {
   try {
     const document = await Document.findOne({
@@ -243,39 +179,30 @@ const deleteDocument = async (req, res) => {
     });
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: 'Document not found',
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Document not found' });
     }
 
-    // Delete chunks
     await Chunk.deleteMany({ documentId: document._id });
+    await Conversation.deleteMany({ documentId: document._id });
 
-    // Delete file if exists
-    const filePath = path.join(__dirname, '..', document.fileUrl);
+    const filePath = path.join(__dirname, '..', document.fileUrl.replace(/^\//, ''));
     if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+      try { fs.unlinkSync(filePath); } catch (e) {}
     }
 
     await document.deleteOne();
 
-    res.json({
-      success: true,
-      message: 'Document deleted successfully',
-    });
+    res.json({ success: true, message: 'Document deleted successfully' });
   } catch (error) {
     console.error('Delete document error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error deleting document',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Error deleting document' });
   }
 };
 
-// @desc    Get document file
-// @route   GET /api/documents/:id/file
-// @access  Private
 const getDocumentFile = async (req, res) => {
   try {
     const document = await Document.findOne({
@@ -284,33 +211,25 @@ const getDocumentFile = async (req, res) => {
     });
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: 'Document not found',
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Document not found' });
     }
 
-    const filePath = path.join(__dirname, '..', document.fileUrl);
+    const filePath = path.join(__dirname, '..', document.fileUrl.replace(/^\//, ''));
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found',
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'File not found' });
     }
 
     res.sendFile(filePath);
   } catch (error) {
     console.error('Get file error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching file',
-    });
+    res.status(500).json({ success: false, message: 'Error fetching file' });
   }
 };
 
-// @desc    Update document metadata
-// @route   PUT /api/documents/:id
-// @access  Private
 const updateDocument = async (req, res) => {
   try {
     const { title, tags, isFavorite } = req.body;
@@ -320,10 +239,9 @@ const updateDocument = async (req, res) => {
     });
 
     if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: 'Document not found',
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Document not found' });
     }
 
     if (title) document.title = title;
@@ -332,16 +250,12 @@ const updateDocument = async (req, res) => {
 
     await document.save();
 
-    res.json({
-      success: true,
-      document,
-    });
+    res.json({ success: true, document });
   } catch (error) {
     console.error('Update document error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating document',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Error updating document' });
   }
 };
 

@@ -1,7 +1,7 @@
-﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
-import AdminRoute from './components/AdminRoute';                 
+import AdminRoute from './components/AdminRoute';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import { Toaster } from 'react-hot-toast';
@@ -19,9 +19,8 @@ import History from './pages/History';
 import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import Sessions from './pages/Sessions';  
+import Sessions from './pages/Sessions';
 
-// Admin imports
 import AdminLayout from './pages/Admin/AdminLayout';
 import AdminDashboard from './pages/Admin/Dashboard';
 import AdminUsers from './pages/Admin/Users';
@@ -45,50 +44,65 @@ function AppContent() {
 
   return (
     <>
-      <Toaster position="top-right" toastOptions={{ duration: 4000, style: { background: '#fff', color: '#1a1a2e' } }} />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: { background: '#fff', color: '#1a1a2e' },
+        }}
+      />
       <Routes>
-        {/* Public Routes (no auth required) */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* Protected Routes */}
-        <Route path="/*" element={
-          <PrivateRoute>
-            <div className="app-container">
-              <Sidebar />
-              <div className="main-content">
-                <Topbar />
-                <div style={{ padding: '24px 32px' }}>
-                  <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/documents" element={<Documents />} />
-                    <Route path="/chat/:documentId?" element={<Chat />} />
-                    <Route path="/compare" element={<Compare />} />
-                    <Route path="/quiz" element={<Quiz />} />
-                    <Route path="/flashcards" element={<Flashcards />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/history" element={<History />} />
-                    <Route path="/sessions" element={<Sessions />} />  {/* <-- NEW route */}
+        <Route
+          path="/*"
+          element={
+            <PrivateRoute>
+              <div className="app-container">
+                <Sidebar />
+                <div className="main-content">
+                  <Topbar />
+                  <div style={{ padding: '24px 32px' }}>
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/documents" element={<Documents />} />
+                      <Route path="/chat/:documentId?" element={<Chat />} />
+                      <Route path="/compare" element={<Compare />} />
+                      <Route path="/quiz" element={<Quiz />} />
+                      <Route path="/flashcards" element={<Flashcards />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/history" element={<History />} />
+                      <Route path="/sessions" element={<Sessions />} />
 
-                    {/* ============ ADMIN ROUTES ============ */}
-                    <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>} />
-                    <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-                    <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
-                    <Route path="/admin/documents" element={<AdminRoute><AdminDocuments /></AdminRoute>} />
-                    <Route path="/admin/logs" element={<AdminRoute><AdminLogs /></AdminRoute>} />
-                    <Route path="/admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
-                    <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
+                      <Route
+                        path="/admin"
+                        element={
+                          <AdminRoute>
+                            <AdminLayout />
+                          </AdminRoute>
+                        }
+                      >
+                        <Route index element={<AdminDashboard />} />
+                        <Route path="dashboard" element={<AdminDashboard />} />
+                        <Route path="users" element={<AdminUsers />} />
+                        <Route path="documents" element={<AdminDocuments />} />
+                        <Route path="logs" element={<AdminLogs />} />
+                        <Route path="settings" element={<AdminSettings />} />
+                        <Route path="*" element={<Navigate to="/admin" replace />} />
+                      </Route>
 
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                  </div>
                 </div>
               </div>
-            </div>
-          </PrivateRoute>
-        } />
+            </PrivateRoute>
+          }
+        />
       </Routes>
     </>
   );
