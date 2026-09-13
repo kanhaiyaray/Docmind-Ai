@@ -19,7 +19,7 @@ Transform static PDFs into conversational knowledge bases — grounded, cited, a
 ![MongoDB Atlas](https://img.shields.io/badge/MongoDB_Atlas-47A248?style=flat-square&logo=mongodb&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat-square&logo=openai&logoColor=white)
 
-🔗 **[Live Demo](https://docmind-ai-opal.vercel.app)** · **[GitHub Repository](https://github.com/kanhaiyaray/Docmind-Ai)**
+🔗 **[Live Demo](https://docmind.vaultfs.in)** · **[GitHub Repository](https://github.com/kanhaiyaray/Docmind-Ai)**
 
 [Overview](#-overview) · [Features](#-feature-highlights) · [Architecture](#%EF%B8%8F-system-architecture) · [Quick Start](#-quick-start) · [API](#-api-reference) · [Security](#-security-model) · [Roadmap](#%EF%B8%8F-roadmap)
 
@@ -685,7 +685,7 @@ docker run -p 10000:10000 --env-file .env docmind-server
 | Environment | Backend | Frontend |
 |---|---|---|
 | Development | `http://localhost:5000` | `http://localhost:5173` |
-| Production | `https://api.yourdomain.com` | [`https://docmind-ai-opal.vercel.app`](https://docmind-ai-opal.vercel.app/chat) |
+| Production | `https://api.yourdomain.com` | [`https://docmind.vaultfs.in`](https://docmind.vaultfs.in/chat) |
 
 ## 🗺️ Roadmap
 
@@ -801,6 +801,6 @@ It takes 2 seconds and helps others discover the project.
 
 Built with ❤️ by **Kanhaiya Ray**
 
-[⬆ Back to Top](#-docmind-ai--rag-) · [🐛 Report Bug](https://github.com/kanhaiyaray/Docmind-Ai/issues) · [✨ Request Feature](https://github.com/kanhaiyaray/Docmind-Ai/issues) · [🚀 Live Demo](https://docmind-ai-opal.vercel.app/chat)
+[⬆ Back to Top](#-docmind-ai--rag-) · [🐛 Report Bug](https://github.com/kanhaiyaray/Docmind-Ai/issues) · [✨ Request Feature](https://github.com/kanhaiyaray/Docmind-Ai/issues) · [🚀 Live Demo](https://docmind.vaultfs.in)
 
 </div>
