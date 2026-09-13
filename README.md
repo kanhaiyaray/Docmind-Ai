@@ -5,7 +5,7 @@
 **Enterprise-Grade Document Intelligence Platform**
 Transform static PDFs into conversational knowledge bases — grounded, cited, and hallucination-free.
 
-[![Live Demo](https://img.shields.io/badge/%F0%9F%9A%80_Live_Demo-6c5ce7?style=for-the-badge&logo=vercel&logoColor=white)](https://docmind-ai-opal.vercel.app)
+[![Live Demo](https://img.shields.io/badge/%F0%9F%9A%80_Live_Demo-6c5ce7?style=for-the-badge&logo=vercel&logoColor=white)](https://docmind.vaultfs.in)
 [![GitHub Repo](https://img.shields.io/badge/GitHub-Repo-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/kanhaiyaray/Docmind-Ai)
 [![Stars](https://img.shields.io/github/stars/kanhaiyaray/Docmind-Ai?style=for-the-badge&logo=github&color=gold)](https://github.com/kanhaiyaray/Docmind-Ai/stargazers)
 [![Forks](https://img.shields.io/github/forks/kanhaiyaray/Docmind-Ai?style=for-the-badge&logo=github&color=blue)](https://github.com/kanhaiyaray/Docmind-Ai/network/members)
