@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
-import { Loader, Save } from 'lucide-react';
+import { Loader, Save, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const AdminSettings = () => {
@@ -33,6 +33,17 @@ const AdminSettings = () => {
     }
   };
 
+  const handleDelete = async (key) => {
+    if (!window.confirm(`Delete setting "${key}"?`)) return;
+    try {
+      await api.delete(`/admin/settings/${key}`);
+      handleSuccess('Setting deleted');
+      fetchSettings();
+    } catch (err) {
+      handleError(err, 'Delete failed');
+    }
+  };
+
   if (loading) {
     return <div className="flex justify-center py-12"><Loader className="h-8 w-8 animate-spin text-purple-600" /></div>;
   }
@@ -60,6 +71,9 @@ const AdminSettings = () => {
                   <div className="flex items-center gap-4">
                     <span className="text-gray-700 dark:text-gray-300">{String(setting.value)}</span>
                     <button onClick={() => setEditing(setting.key)} className="text-blue-600 hover:text-blue-800 text-sm">Edit</button>
+                    <button onClick={() => handleDelete(setting.key)} className="text-red-600 hover:text-red-800 text-sm inline-flex items-center gap-1">
+                      <Trash2 size={14} /> Delete
+                    </button>
                   </div>
                 )}
               </li>

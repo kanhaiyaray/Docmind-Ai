@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
@@ -24,8 +24,11 @@ import Sessions from './pages/Sessions';
 import AdminLayout from './pages/Admin/AdminLayout';
 import AdminDashboard from './pages/Admin/Dashboard';
 import AdminUsers from './pages/Admin/Users';
+import AdminUserDetail from './pages/Admin/UserDetail';
 import AdminDocuments from './pages/Admin/Documents';
 import AdminLogs from './pages/Admin/Logs';
+import AdminAnalytics from './pages/Admin/Analytics';
+import AdminSystemHealth from './pages/Admin/SystemHealth';
 import AdminSettings from './pages/Admin/Settings';
 
 function AppContent() {
@@ -46,10 +49,7 @@ function AppContent() {
     <>
       <Toaster
         position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: { background: '#fff', color: '#1a1a2e' },
-        }}
+        toastOptions={{ duration: 4000, style: { background: '#fff', color: '#1a1a2e' } }}
       />
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -89,8 +89,11 @@ function AppContent() {
                         <Route index element={<AdminDashboard />} />
                         <Route path="dashboard" element={<AdminDashboard />} />
                         <Route path="users" element={<AdminUsers />} />
+                        <Route path="users/:id" element={<AdminUserDetail />} />
                         <Route path="documents" element={<AdminDocuments />} />
                         <Route path="logs" element={<AdminLogs />} />
+                        <Route path="analytics" element={<AdminAnalytics />} />
+                        <Route path="system" element={<AdminSystemHealth />} />
                         <Route path="settings" element={<AdminSettings />} />
                         <Route path="*" element={<Navigate to="/admin" replace />} />
                       </Route>

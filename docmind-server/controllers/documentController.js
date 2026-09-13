@@ -1,4 +1,4 @@
-const Document = require('../models/Document');
+﻿const Document = require('../models/Document');
 const Chunk = require('../models/Chunk');
 const Conversation = require('../models/Conversation');
 const pdfService = require('../services/pdfService');
@@ -29,7 +29,7 @@ const uploadDocument = async (req, res) => {
     await document.save();
 
     processDocument(document._id, filePath, req.userId).catch((error) => {
-      console.error(`❌ Error processing document ${document._id}:`, error);
+      console.error(`âŒ Error processing document ${document._id}:`, error);
     });
 
     res.status(201).json({
@@ -47,11 +47,11 @@ const uploadDocument = async (req, res) => {
 
 const processDocument = async (documentId, filePath, userId) => {
   try {
-    console.log(`🔄 Processing document ${documentId}...`);
+    console.log(`ðŸ”„ Processing document ${documentId}...`);
 
     const document = await Document.findById(documentId);
     if (!document) {
-      console.log(`❌ Document ${documentId} not found`);
+      console.log(`âŒ Document ${documentId} not found`);
       return;
     }
 
@@ -103,9 +103,9 @@ const processDocument = async (documentId, filePath, userId) => {
 
     document.status = 'completed';
     await document.save();
-    console.log(`✅ Document ${documentId} processed successfully`);
+    console.log(`âœ… Document ${documentId} processed successfully`);
   } catch (error) {
-    console.error(`❌ Unhandled error processing document ${documentId}:`, error);
+    console.error(`âŒ Unhandled error processing document ${documentId}:`, error);
     await Document.findByIdAndUpdate(documentId, {
       status: 'failed',
       processingError: `Processing failed: ${error.message}`,
@@ -266,4 +266,6 @@ module.exports = {
   deleteDocument,
   getDocumentFile,
   updateDocument,
+  processDocument,
 };
+
