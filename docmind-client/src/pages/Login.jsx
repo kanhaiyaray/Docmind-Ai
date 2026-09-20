@@ -1,7 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'; 
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -15,7 +15,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLocalError('');
-    
+
     if (!email.trim()) {
       setLocalError('Please enter your email');
       return;
@@ -24,18 +24,16 @@ const Login = () => {
       setLocalError('Please enter your password');
       return;
     }
-    
+
     setLoading(true);
     const result = await login(email, password);
     setLoading(false);
-    
+
     if (result.success) {
-      console.log('✅ Login successful, redirecting...');
       setTimeout(() => {
-        navigate('/', { replace: true });
+        navigate('/dashboard', { replace: true });
       }, 200);
     } else {
-      console.log('❌ Login failed:', result.error);
       setLocalError(result.error || 'Invalid email or password. Please try again.');
     }
   };
@@ -107,7 +105,7 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-[#0d1117] border border-[#30363d] text-white placeholder-gray-500 rounded-lg pl-10 pr-10 py-2.5 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors"
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   autoComplete="current-password"
                 />
                 <button
@@ -137,16 +135,9 @@ const Login = () => {
           </form>
 
           <div className="mt-6 pt-5 border-t border-[#30363d] text-center">
-            <p className="text-xs text-gray-500">
-              By signing in, you agree to our{' '}
-              <Link to="/terms" className="text-gray-400 hover:text-purple-400 transition-colors">
-                Terms
-              </Link>
-              {' '}and{' '}
-              <Link to="/privacy" className="text-gray-400 hover:text-purple-400 transition-colors">
-                Privacy Policy
-              </Link>
-            </p>
+            <Link to="/" className="text-xs text-gray-500 hover:text-purple-400 transition-colors">
+              ← Back to home
+            </Link>
           </div>
         </div>
       </div>

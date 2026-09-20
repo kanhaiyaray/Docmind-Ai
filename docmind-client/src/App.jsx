@@ -6,8 +6,15 @@ import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import { Toaster } from 'react-hot-toast';
 
+import PublicLayout from './components/landing/PublicLayout';
+import LandingPage from './pages/landing/LandingPage';
+
 import Login from './pages/Login';
 import Register from './pages/Register';
+import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+
 import Dashboard from './pages/Dashboard';
 import Documents from './pages/Documents';
 import Chat from './pages/Chat';
@@ -16,9 +23,6 @@ import Quiz from './pages/Quiz';
 import Flashcards from './pages/Flashcards';
 import Settings from './pages/Settings';
 import History from './pages/History';
-import VerifyEmail from './pages/VerifyEmail';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
 import Sessions from './pages/Sessions';
 
 import AdminLayout from './pages/Admin/AdminLayout';
@@ -52,6 +56,10 @@ function AppContent() {
         toastOptions={{ duration: 4000, style: { background: '#fff', color: '#1a1a2e' } }}
       />
       <Routes>
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<LandingPage />} />
+        </Route>
+
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
@@ -68,7 +76,7 @@ function AppContent() {
                   <Topbar />
                   <div style={{ padding: '24px 32px' }}>
                     <Routes>
-                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/documents" element={<Documents />} />
                       <Route path="/chat/:documentId?" element={<Chat />} />
                       <Route path="/compare" element={<Compare />} />
@@ -98,7 +106,7 @@ function AppContent() {
                         <Route path="*" element={<Navigate to="/admin" replace />} />
                       </Route>
 
-                      <Route path="*" element={<Navigate to="/" replace />} />
+                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
                   </div>
                 </div>
